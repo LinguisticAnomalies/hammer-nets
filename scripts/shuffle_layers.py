@@ -109,8 +109,8 @@ def epoch_main_process(layer, share, style):
     :param share: the % of attention heads to be changed
     :type share: int
     """
-    con_train_res = read_json("../results/cache_original/con_train.json")
-    folder_prefix = "../results/cache-epochs-100/"
+    con_train_res = read_json("../results/cache-original/con_train.json")
+    folder_prefix = "../results/cache-epochs-100-share-" + str(share) + "-style-" + str(style) + "/"
     best_model = train_process(train_frame, layer, epochs, con_train_res,
                                 share, style)
     # check if the current batch has the best model,
@@ -118,9 +118,8 @@ def epoch_main_process(layer, share, style):
     # otherwise, continue to next batch
     if best_model:
         out_file = "layer_" + str(layer) + "_" + \
-                + "_epochs_" + str(share) + "_share_" + str(style) +  "_gpt2_dem.json"
+            str(share) + "_share_" + str(style) + "_gpt2_dem.json"
         # save the generated text from the best best model to log file
-        sys.stdout.write("")
         evaluate_model_with_output(test_frame, best_model, gpt_tokenizer, folder_prefix, out_file)
         generate_dem_text(share, layer, best_model, gpt_tokenizer)
 

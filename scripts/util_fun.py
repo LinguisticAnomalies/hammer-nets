@@ -414,14 +414,28 @@ def generate_dem_text(share, layer, model, tokenizer):
     :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
     """
     dem_padded_text = ".".join(dem_case.split(".")[:5])
-    dem_input = tokenizer.encode(dem_padded_text, add_special_tokens=True, return_tensors="pt")
-    prompt_dem_length = len(tokenizer.decode(dem_input[0], skip_special_tokens=True,
-                            clean_up_tokenization_spaces=True))
-    dem_output = model.generate(dem_input, max_length=120, do_sample=True, top_k=60, top_p=0.95)
-    sys.stdout.write(100*"-")
-    sys.stdout.write("\n")
-    sys.stdout.write("Modifying first {}% attention heads in the {}-th layer:\n".format(share, layer) + 100 * '-')
-    sys.stdout.write(tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_dem_length:])
-    sys.stdout.write("\n")
-    sys.stdout.write(100*"-")
-    sys.stdout.write("\n")
+    if USE_GPU:
+        dem_input = tokenizer.encode(dem_padded_text, add_special_tokens=True, return_tensors="pt")
+        dem_input = dem_input.to(DEVICE)
+        prompt_dem_length = len(tokenizer.decode(dem_input[0], skip_special_tokens=True,
+                                clean_up_tokenization_spaces=True))
+        dem_output = model.generate(dem_input, max_length=120, do_sample=True, top_k=60, top_p=0.95)
+        sys.stdout.write(100*"-")
+        sys.stdout.write("\n")
+        sys.stdout.write("Modifying first {}% attention heads in the {}-th layer:\n".format(share, layer) + 100 * '-')
+        sys.stdout.write(tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_dem_length:])
+        sys.stdout.write("\n")
+        sys.stdout.write(100*"-")
+        sys.stdout.write("\n")
+    else:
+        dem_input = tokenizer.encode(dem_padded_text, add_special_tokens=True, return_tensors="pt")
+        prompt_dem_length = len(tokenizer.decode(dem_input[0], skip_special_tokens=True,
+                                clean_up_tokenization_spaces=True))
+        dem_output = model.generate(dem_input, max_length=120, do_sample=True, top_k=60, top_p=0.95)
+        sys.stdout.write(100*"-")
+        sys.stdout.write("\n")
+        sys.stdout.write("Modifying first {}% attention heads in the {}-th layer:\n".format(share, layer) + 100 * '-')
+        sys.stdout.write(tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_dem_length:])
+        sys.stdout.write("\n")
+        sys.stdout.write(100*"-")
+        sys.stdout.write("\n")
