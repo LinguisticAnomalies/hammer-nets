@@ -13,16 +13,13 @@ import argparse
 import warnings
 import logging
 import pickle
-from datetime import datetime
 import pandas as pd
-import numpy as np
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from util_fun import evaluate_model_without_output, generate_dem_text, read_json
 from util_fun import calculate_auc_for_diff_model, evaluate_model_with_output, break_attn_heads_by_layer
 
 
 gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
-epochs = 20
 train_frame = pd.read_csv("address_train.csv")
 test_frame = pd.read_csv("address_test.csv")
 
@@ -41,7 +38,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def train_process(eva_frame, num_layer, num_epochs, con_train_res, share, style):
+def train_process_for_shuffle(eva_frame, num_layer, num_epochs, con_train_res, share, style):
     """
     the epoch training process for shuffling ttention heads of GPT-2 model,
     evaluate on the ADDRESS training set
@@ -67,8 +64,8 @@ def train_process(eva_frame, num_layer, num_epochs, con_train_res, share, style)
     best_model = None
     best_auc = 0.0
     # save all epoch auc to a local pickle file
-    pkl_file = "head_" + str(num_layer) + "_" + \
-        str(num_epochs) + "_epochs_" + str(share) + "_share_" + str(style) + ".pkl"
+    pkl_file = "pkls/" + str(style) + "/layer_" + str(num_layer) + "_" + \
+        str(num_epochs) + "_epochs_" + str(share) + "_share.pkl"
     # if not the first 10 epochs
     if os.path.exists(pkl_file):
         with open(pkl_file, "rb") as auc_f:
@@ -97,7 +94,7 @@ def train_process(eva_frame, num_layer, num_epochs, con_train_res, share, style)
     return best_model
 
 
-def epoch_main_process(layer, share, style):
+def epoch_main_process(layer, share, style, epochs):
     """
     the main function for epoch training
     shuffle GPT-2 model with certain number of epochs,
@@ -108,11 +105,14 @@ def epoch_main_process(layer, share, style):
     :type layer: int
     :param share: the % of attention heads to be changed
     :type share: int
+    :param epochs: number of epochs for testing
+    :type epochs: int
     """
     con_train_res = read_json("../results/cache-original/con_train.json")
     folder_prefix = "../results/cache-epochs-100-share-" + str(share) + "-style-" + str(style) + "/"
-    best_model = train_process(train_frame, layer, epochs, con_train_res,
-                                share, style)
+    best_model = train_process_for_shuffle(train_frame, layer,
+                                            epochs, con_train_res,
+                                            share, style)
     # check if the current batch has the best model,
     # if so, evaluate the best model with test set and save the result to local file
     # otherwise, continue to next batch
@@ -125,11 +125,12 @@ def epoch_main_process(layer, share, style):
 
 
 if __name__ == "__main__":
-    start_time = datetime.now()
+    epochs = 1
+    style = "zero"
     args = parse_args()
     log_file = "logs/epoch_" + str(epochs) + "_batch_" + str(args.batch) + \
-        "_layer_" + str(args.layer)+ "_" + str(args.share) + "_share.log"
-    begin_time = datetime.now()
+        "_layer_" + style + "_" + \
+            str(args.share) + "_share_" + style + ".log"
     if os.path.exists(log_file):
         commend = "rm " + log_file
         os.system(commend)
@@ -139,4 +140,4 @@ if __name__ == "__main__":
                         filemode="a", level=logging.ERROR,
                         filename=log_file)
     sys.stdout = log
-    epoch_main_process(args.layer, args.share, "shuffle")
+    epoch_main_process(args.layer, args.share, style, epochs)
