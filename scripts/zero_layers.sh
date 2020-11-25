@@ -5,14 +5,17 @@ format_time() {
   ((s=${1}%60))
   printf "%02d:%02d:%02d\n" $h $m $s
  }
- 
- for layer in 0 1 2 3 4 5 6 7 8 9 10 11
-    do 
-        echo "zeroing layer $layer"
-        for share in 25 50 100
+ for share in 25 50 100
+    do
+    echo "zeroing $share% attention heads"
+    for eval in "diff" "ratio" "log"
+        do
+        echo "evaluation method: $eval"
+        for style in "onetime" "accumu" "comb"
             do
-                echo "zeroing $share% attention heads"
-                python shuffle_layers.py --layer $layer --share $share --batch 1
+            echo "zeroing style: $style"
+            python zero_attn_heads.py --style $style --eval $eval  --share $share
             done
+        done
     done
 echo "Script completed in $(format_time $SECONDS)"

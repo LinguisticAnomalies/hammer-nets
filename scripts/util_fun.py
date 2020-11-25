@@ -330,6 +330,46 @@ def calculate_auc_for_diff_model(labels, con_col, dem_col):
     return diff_auc
 
 
+def calculate_auc_for_ratio_model(labels, con_col, dem_col):
+    """
+    calculate auc for c/d model only
+    :param labels: transcript labels, 0 as control, 1 as dementia
+    :type labels: Pandas.Series
+    :param con_col: control model perpelxity
+    :type con_col: Pandas.Series
+    :param dem_col: dementia model perplexity
+    :type dem_col: Pandas.Series
+    :return: the auc for c-d model
+    :rtype: float
+    """
+    labels = labels.values.tolist()
+    ratio_perp = con_col/dem_col
+    ratio_perp = ratio_perp.values.tolist()
+    ratio_fpr, ratio_tpr, _ = roc_curve(labels, ratio_perp)
+    ratio_auc = auc(ratio_fpr, ratio_tpr)
+    return ratio_auc
+
+
+def calculate_auc_for_log_model(labels, con_col, dem_col):
+    """
+    calculate auc for log(c)-log(d) model only
+    :param labels: transcript labels, 0 as control, 1 as dementia
+    :type labels: Pandas.Series
+    :param con_col: control model perpelxity
+    :type con_col: Pandas.Series
+    :param dem_col: dementia model perplexity
+    :type dem_col: Pandas.Series
+    :return: the auc for c-d model
+    :rtype: float
+    """
+    labels = labels.values.tolist()
+    diff_perp = np.log(con_col) - np.log(dem_col)
+    diff_perp = diff_perp.values.tolist()
+    diff_fpr, diff_tpr, _ = roc_curve(labels, diff_perp)
+    diff_auc = auc(diff_fpr, diff_tpr)
+    return diff_auc
+
+
 def read_json(full_path):
     """
     read json output files and store as pandas dataframe
@@ -414,28 +454,17 @@ def generate_dem_text(share, layer, model, tokenizer):
     :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
     """
     dem_padded_text = ".".join(dem_case.split(".")[:5])
+    dem_input = tokenizer.encode(dem_padded_text, add_special_tokens=True, return_tensors="pt")
     if USE_GPU:
-        dem_input = tokenizer.encode(dem_padded_text, add_special_tokens=True, return_tensors="pt")
         dem_input = dem_input.to(DEVICE)
-        prompt_dem_length = len(tokenizer.decode(dem_input[0], skip_special_tokens=True,
-                                clean_up_tokenization_spaces=True))
-        dem_output = model.generate(dem_input, max_length=120, do_sample=True, top_k=60, top_p=0.95)
-        sys.stdout.write(100*"-")
-        sys.stdout.write("\n")
-        sys.stdout.write("Modifying first {}% attention heads in the {}-th layer:\n".format(share, layer) + 100 * '-')
-        sys.stdout.write(tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_dem_length:])
-        sys.stdout.write("\n")
-        sys.stdout.write(100*"-")
-        sys.stdout.write("\n")
-    else:
-        dem_input = tokenizer.encode(dem_padded_text, add_special_tokens=True, return_tensors="pt")
-        prompt_dem_length = len(tokenizer.decode(dem_input[0], skip_special_tokens=True,
-                                clean_up_tokenization_spaces=True))
-        dem_output = model.generate(dem_input, max_length=120, do_sample=True, top_k=60, top_p=0.95)
-        sys.stdout.write(100*"-")
-        sys.stdout.write("\n")
-        sys.stdout.write("Modifying first {}% attention heads in the {}-th layer:\n".format(share, layer) + 100 * '-')
-        sys.stdout.write(tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_dem_length:])
-        sys.stdout.write("\n")
-        sys.stdout.write(100*"-")
-        sys.stdout.write("\n")
+        model = model.to(DEVICE)
+    prompt_dem_length = len(tokenizer.decode(dem_input[0], skip_special_tokens=True,
+                            clean_up_tokenization_spaces=True))
+    dem_output = model.generate(dem_input, max_length=120, do_sample=True, top_k=60, top_p=0.95)
+    sys.stdout.write(100*"-")
+    sys.stdout.write("\n")
+    sys.stdout.write("Modifying first {}% attention heads in the {}-th layer:\n".format(share, layer) + 100 * '-')
+    sys.stdout.write(tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_dem_length:])
+    sys.stdout.write("\n")
+    sys.stdout.write(100*"-")
+    sys.stdout.write("\n")
