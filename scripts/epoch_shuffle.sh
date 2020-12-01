@@ -19,7 +19,7 @@ format_time() {
                     done
             done
     done
-    echo "Script completed in $(format_time $SECONDS)"
+
 
 for layer in 0 1 2 3 4 5 6 7 8 9 10 11
     do 
@@ -34,7 +34,7 @@ for layer in 0 1 2 3 4 5 6 7 8 9 10 11
                     done
             done
     done
-    echo "Script completed in $(format_time $SECONDS)"
+
 
 for layer in 0 1 2 3 4 5 6 7 8 9 10 11
     do 
@@ -49,4 +49,4 @@ for layer in 0 1 2 3 4 5 6 7 8 9 10 11
                     done
             done
     done
-    echo "Script completed in $(format_time $SECONDS)"
+echo "Script completed in $(format_time $SECONDS)"

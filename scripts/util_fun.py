@@ -3,6 +3,7 @@ Utility functions
 """
 
 import os
+import re
 import pickle
 import math
 import sys
@@ -310,6 +311,28 @@ def evaluate_model_with_output(test_frame, model, tokenizer, output_prefix, out_
                 out_f.write("\n")
 
 
+def calcualte_accuracy(labels, perp):
+    """
+    calcualte accuracy given labels and perpelxity scores
+
+    :param labels: the transcript labels
+    :type labels: list
+    :param perp: the perplexity scores
+    :type perp: list
+    :return: accuracy and acu
+    """
+    fpr, tpr, _ = roc_curve(labels, perp)
+    fnr = 1 - tpr
+    tnr = 1 - fpr
+    auc_level = auc(fpr, tpr)
+    prevalence = np.count_nonzero(labels)/len(labels)
+    eer_point = np.nanargmin(np.absolute((fnr - fpr)))
+    tpr_at_eer = tpr[eer_point]
+    tnr_at_eer = tnr[eer_point]
+    accuracy = tpr_at_eer * prevalence + tnr_at_eer * (1-prevalence)
+    return accuracy, auc_level
+
+
 def calculate_auc_for_diff_model(labels, con_col, dem_col):
     """
     calculate auc for c-d model only
@@ -325,9 +348,7 @@ def calculate_auc_for_diff_model(labels, con_col, dem_col):
     labels = labels.values.tolist()
     diff_perp = con_col - dem_col
     diff_perp = diff_perp.values.tolist()
-    diff_fpr, diff_tpr, _ = roc_curve(labels, diff_perp)
-    diff_auc = auc(diff_fpr, diff_tpr)
-    return diff_auc
+    return calcualte_accuracy(labels, diff_perp)
 
 
 def calculate_auc_for_ratio_model(labels, con_col, dem_col):
@@ -345,9 +366,7 @@ def calculate_auc_for_ratio_model(labels, con_col, dem_col):
     labels = labels.values.tolist()
     ratio_perp = con_col/dem_col
     ratio_perp = ratio_perp.values.tolist()
-    ratio_fpr, ratio_tpr, _ = roc_curve(labels, ratio_perp)
-    ratio_auc = auc(ratio_fpr, ratio_tpr)
-    return ratio_auc
+    return calcualte_accuracy(labels, ratio_perp)
 
 
 def calculate_auc_for_log_model(labels, con_col, dem_col):
@@ -363,11 +382,9 @@ def calculate_auc_for_log_model(labels, con_col, dem_col):
     :rtype: float
     """
     labels = labels.values.tolist()
-    diff_perp = np.log(con_col) - np.log(dem_col)
-    diff_perp = diff_perp.values.tolist()
-    diff_fpr, diff_tpr, _ = roc_curve(labels, diff_perp)
-    diff_auc = auc(diff_fpr, diff_tpr)
-    return diff_auc
+    log_perp = np.log(con_col) - np.log(dem_col)
+    log_perp = log_perp.values.tolist()
+    return calcualte_accuracy(labels, log_perp)
 
 
 def read_json(full_path):
@@ -379,32 +396,6 @@ def read_json(full_path):
     df_con = pd.read_json(full_path, orient="records", lines=True)
     df_con.columns = ["file", "label", "control"]
     return df_con
-
-
-def break_attn_heads(model, num_head, style):
-    """
-    shuffling head attention vector of GPT-2 model
-    :param model: the GPT-2 model serving as dementia model
-    :type model: transformers.modeling_gpt2.GPT2LMHeadModel
-    :param num_head: the n-th attention head to be shuffled, ranging from 0 to 11
-    :type num_head: int
-    :param style: shuffle type, choice between 'zero' or 'shuffle'
-    :type style: str
-    :return: the modified GPT-2 model
-    :rtype: transformers.modeling_gpt2.GPT2LMHeadModel
-    """
-    offset = head_offsets[num_head]
-    if style == "zero":
-        for layer in range(0, 12):
-            for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
-                model.transformer.h[layer].attn.c_attn.weight[row][offset:offset + 64] = \
-                    model.transformer.h[layer].attn.c_attn.weight[row][offset:offset + 64].mul(0)
-    else:
-        for layer in range(0, 12):
-            for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
-                np.random.shuffle(
-                    model.transformer.h[layer].attn.c_attn.weight[row][offset:offset + 64])
-    return model
 
 
 def break_attn_heads_by_layer(model, share, layer, style):
@@ -424,30 +415,26 @@ def break_attn_heads_by_layer(model, share, layer, style):
     :return: the modified model
     :rtype: transformers.modeling_gpt2.GPT2LMHeadModel
     """
+    offset = int(64*(share/100))
     if style == "zero":
         for head in head_offsets:
             for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
-                offset = int(64*(share/100))
                 model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset] = \
                     model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset].mul(0)
         return model
     else:
         for head in head_offsets:
             for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
-                offset = int(64*(share/100))
                 np.random.shuffle(model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset] )
         return model
 
 
-def generate_dem_text(share, layer, model, tokenizer):
+def generate_dem_text(model, tokenizer):
     """
-    use the demenia model to generate text
-    print out the generated text
+    use the demenia model to generate text and print out the generated text
+    use the first 5 sentences for dementia transcript as prompt input,
+    generate up tp 120 characters based on the prompt input and modified model
 
-    :param share: the % of model that is modified
-    :type share: int
-    :param layer: the n-th layer of the model
-    :type layer: int
     :param model: the model for dementia simulation
     :type model: transformers.modeling_gpt2.GPT2LMHeadModel
     :param tokenizer: the GPT-2 tokenizer
@@ -461,10 +448,11 @@ def generate_dem_text(share, layer, model, tokenizer):
     prompt_dem_length = len(tokenizer.decode(dem_input[0], skip_special_tokens=True,
                             clean_up_tokenization_spaces=True))
     dem_output = model.generate(dem_input, max_length=120, do_sample=True, top_k=60, top_p=0.95)
-    sys.stdout.write(100*"-")
+    sys.stdout.write(20*"-")
     sys.stdout.write("\n")
-    sys.stdout.write("Modifying first {}% attention heads in the {}-th layer:\n".format(share, layer) + 100 * '-')
-    sys.stdout.write(tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_dem_length:])
+    output = tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_dem_length:]
+    output = re.sub(r"\s+", " ", output, flags=re.UNICODE)
+    sys.stdout.write(output)
     sys.stdout.write("\n")
-    sys.stdout.write(100*"-")
+    sys.stdout.write(20*"-")
     sys.stdout.write("\n")
