@@ -10,7 +10,7 @@ from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from util_fun import evaluate_model_without_output, generate_dem_text, read_json
 from util_fun import calculate_auc_for_diff_model, calculate_auc_for_ratio_model
 from util_fun import calculate_auc_for_log_model
-from util_fun import evaluate_model_with_output, break_attn_heads_by_layer
+from util_fun import calcualte_accuracy, break_attn_heads_by_layer
 
 
 gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
@@ -79,6 +79,12 @@ def print_output(model_dem):
     full_test_res = con_test_res.merge(test_res, on="file")
     full_test_res.columns = ["file", "label", "con_perp", "discard", "dem_perp"]
     full_test_res = full_test_res.drop(["discard"], axis=1)
+    # calcualte auc and accuracy for control model
+    labels = full_train_res["label"].values.tolist()
+    con_perp = full_train_res["con_perp"].values.tolist()
+    con_accu, con_auc = calcualte_accuracy(labels, con_perp)
+    sys.stdout.write("control model auc: {}\n".format(round(con_auc, 3)))
+    sys.stdout.write("control model accuracy: {}\n".format(round(con_accu, 3)))
     # calculate aucs and print them out
     for item in eval_methods:
         train_accu, train_auc = calculate_aucs(item, full_train_res)
@@ -87,7 +93,6 @@ def print_output(model_dem):
         test_accu, test_auc = calculate_aucs(item, full_test_res)
         sys.stdout.write("test set in {} auc: {}\n".format(item, round(test_auc, 3)))
         sys.stdout.write("test set in {} accuracy: {}\n".format(item, round(test_accu, 3)))
-
 
 
 def onetime_train_process(share, eva_method):
@@ -136,7 +141,7 @@ def accumu_train_process(share, num_layers):
     sys.stdout.write("\n")
     sys.stdout.write("first {} layers\n".format(num_layers))
     print_output(model_dem)
-    generate_dem_text(model_dem, gpt_tokenizer)
+    # generate_dem_text(model_dem, gpt_tokenizer)
     sys.stdout.write("="*20)
     sys.stdout.write("\n")
 
