@@ -95,31 +95,31 @@ def print_output(model_dem):
         sys.stdout.write("test set in {} accuracy: {}\n".format(item, round(test_accu, 3)))
 
 
-def onetime_train_process(share, eva_method):
+def onetime_train_process(share):
     """
     zeroing certain share of attention heads in each layer,
     and just change one layer
 
     :param share: the % of attention heads to be zeroed
     :type share: int
-    :param eva_method: the evaluation metrics
-    :type eva_method: str
     """
     style = "zero"
     for i in range(0, 12):
         model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
         model_modified = break_attn_heads_by_layer(model_dem, share, i, style)
-        dem_res = evaluate_model_without_output(train_frame, model_modified, gpt_tokenizer)
-        full_res = con_train_res.merge(dem_res, on="file")
-        full_res.columns = ["file", "label", "con_perp", "discard", "dem_perp"]
-        full_res = full_res.drop(["discard"], axis=1)
-        calculate_aucs(eva_method, full_res)
+        sys.stdout.write("="*20)
+        sys.stdout.write("\n")
+        sys.stdout.write("{}-th layer\n".format(i))
+        print_output(model_modified)
+        # generate_dem_text(model_dem, gpt_tokenizer)
+        sys.stdout.write("="*20)
+        sys.stdout.write("\n")
         '''
         out_file = "layer_{}_dem.json".format(i)
         evaluate_model_with_output(test_frame, model_modified, gpt_tokenizer,
                                    folder_prefix, out_file)
         '''
-        generate_dem_text(model_dem, gpt_tokenizer)
+        generate_dem_text(model_modified, gpt_tokenizer)
         
 
 def accumu_train_process(share, num_layers):
