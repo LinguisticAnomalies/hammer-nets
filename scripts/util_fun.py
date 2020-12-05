@@ -4,6 +4,7 @@ Utility functions
 
 import os
 import re
+import warnings
 import pickle
 import math
 import sys
@@ -15,6 +16,7 @@ from nltk.probability import FreqDist
 from sklearn.metrics import roc_curve, auc
 
 
+warnings.filterwarnings('ignore')
 DEVICE = "cuda"
 USE_GPU = True
 head_offsets = [1536, 1536+64, 1536+128, 1536+192, 1536+256,
@@ -22,6 +24,17 @@ head_offsets = [1536, 1536+64, 1536+128, 1536+192, 1536+256,
                 1536+576, 1536+640, 1536+704]
 con_case = "okay the little boy is on a stool about to fall. the stool's about to upset. and he has a cookie in each hand handing about to hand one. and the water is running over into the dishpan there or into. and the mother or the lady is standing there drying a dish. two two cups and a plate are on the counter there. and and out the window there's a walkway and and. what's happening you said huh. okay that's that's what's happening i guess. thank"
 dem_case = "well the little kid's falling off his stool. and the mother is having water run over the sink. well the water's running on the floor. under her feet. i'm looking outside but that yard is okay. the windows are open. the little girl is laughing at the boy falling off the chair. that that's bad."
+
+
+def check_file(file_path):
+    """
+    if the file exists, then delete it
+
+    :param file_path: the full path to the fle
+    :type file_path: str
+    """
+    if os.path.exists(file_path):
+        os.system("rm " + file_path)
 
 
 def get_word_dist(input_frame, trans_col):
@@ -191,20 +204,28 @@ def read_data(prefix_path, data_type):
                     doc_string = doc_string.replace("\n", "")
                     doc_string = doc_string.strip()
                 if data_type == "add_train_con":
+                    cc_meta = pd.read_csv("/edata/ADReSS-IS2020-data/train/cc_meta_data.txt", sep=";")
+                    mmse = cc_meta[cc_meta['ID   '] == filename[:-4]+' ']['mmse'].values[0]
                     trans_df = trans_df.append({"file": filename,
                                                 "text": doc_string,
-                                                "label": 0},
+                                                "label": 0,
+                                                "mmse": mmse},
                                                 ignore_index=True)
                 elif data_type == "add_train_dem":
+                    cd_meta = pd.read_csv("/edata/ADReSS-IS2020-data/train/cd_meta_data.txt", sep=";")
+                    mmse = cd_meta[cd_meta['ID   '] == filename[:-4]+' ']['mmse'].values[0]
                     trans_df = trans_df.append({"file": filename,
                                                 "text": doc_string,
-                                                "label": 1},
+                                                "label": 1,
+                                                "mmse": mmse},
                                                 ignore_index=True)
                 else:
                     label = meta[meta['ID   '] == filename[:-4]+' ']['Label '].values[0]
+                    mmse = meta[meta['ID   '] == filename[:-4]+' ']['mmse'].values[0]
                     trans_df = trans_df.append({"file": filename,
                                                 "text": doc_string,
-                                                "label": label},
+                                                "label": label,
+                                                "mmse": mmse},
                                                 ignore_index=True)
     return trans_df
 
@@ -439,6 +460,8 @@ def generate_dem_text(model, tokenizer):
     :type model: transformers.modeling_gpt2.GPT2LMHeadModel
     :param tokenizer: the GPT-2 tokenizer
     :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
+    :return: the generated text
+    :rtype: str
     """
     dem_padded_text = ".".join(dem_case.split(".")[:5])
     dem_input = tokenizer.encode(dem_padded_text, add_special_tokens=True, return_tensors="pt")
@@ -447,12 +470,10 @@ def generate_dem_text(model, tokenizer):
         model = model.to(DEVICE)
     prompt_dem_length = len(tokenizer.decode(dem_input[0], skip_special_tokens=True,
                             clean_up_tokenization_spaces=True))
-    dem_output = model.generate(dem_input, max_length=120, do_sample=True, top_k=60, top_p=0.95)
-    sys.stdout.write(20*"-")
-    sys.stdout.write("\n")
+    # dem_output = model.generate(dem_input, max_length=120, do_sample=True, top_k=60, top_p=0.95)
+    dem_output = model.generate(dem_input, max_length=100, num_beams=5,
+                                no_repeat_ngram_size=1, num_return_sequences=5, early_stopping=True)
+    
     output = tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_dem_length:]
     output = re.sub(r"\s+", " ", output, flags=re.UNICODE)
-    sys.stdout.write(output)
-    sys.stdout.write("\n")
-    sys.stdout.write(20*"-")
-    sys.stdout.write("\n")
+    return output
