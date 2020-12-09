@@ -13,14 +13,20 @@ from util_fun import evaluate_model_without_output, generate_dem_text, read_json
 from util_fun import calculate_auc_for_diff_model, calculate_auc_for_ratio_model
 from util_fun import calculate_auc_for_log_model
 from util_fun import calcualte_accuracy, break_attn_heads_by_layer
-from util_fun import check_file
+from util_fun import check_file, str2bool
 
 
 gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
-train_frame = pd.read_csv("address_train.csv")
-test_frame = pd.read_csv("address_test.csv")
-con_train_res = read_json("../results/cache-original/con_train.json")
-con_test_res = read_json("../results/cache-original/con_test.json")
+'''
+train_frame = pd.read_csv("data/address_train.csv")
+test_frame = pd.read_csv("data/address_test.csv")
+con_train_res = read_json("../results/cache-original/con_full_train.json")
+con_test_res = read_json("../results/cache-original/con_full_test.json")
+'''
+train_frame = pd.read_csv("data/address_train_mild.csv")
+test_frame = pd.read_csv("data/address_test_mild.csv")
+con_train_res = read_json("../results/cache-original/con_mild_train.json")
+con_test_res = read_json("../results/cache-original/con_mild_test.json")
 
 
 def parse_args():
@@ -35,26 +41,6 @@ def parse_args():
     parser.add_argument('--text', type=str2bool,
                         help="boolean indicator for text generation with dementia model")
     return parser.parse_args()
-
-
-def str2bool(v):
-    """
-    convert user input into boolean value
-
-    :param v: user input of true or false
-    :type v: str
-    :raises argparse.ArgumentTypeError: Boolean value expected.
-    :return: a boolean value
-    :rtype: bool
-    """
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 def calculate_aucs(eva_method, full_res):
