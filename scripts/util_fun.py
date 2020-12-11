@@ -127,90 +127,91 @@ def process_wls_data():
     :rtype: pd.DataFrame
     """
     # Yue's code
-    _dir_wls = '/edata/wls/wls_activity_transcripts/'
-    wls_control_input = [open(filename, encoding='cp1252').read() for filename in glob.glob(_dir_wls+"*.txt")]
-    clean = []
-    for i, line in enumerate (wls_control_input):
-        line = re.sub(r'\&\=clears\s+throat',r' ',line) # throat clears
-        line = re.sub(r'(\w+)\((\w+)\)',r'\1\2',line) # open parentheses e.g, comin(g)
-        line = re.sub(r'\((\w+)\)(\w+)',r'\1\2',line) # open parentheses e.g, (be)coming
-        line = re.sub(r'\s+\w+\s+\[\:\s+([^\]]+)\]',r' \1 ', line) # open square brackets eg. [: overflowing] - error replacements
-        line = re.sub(r'\&\w+\s+',r' ', line) # remove disfluencies prefixed with "&"
-        line = re.sub(r'xxx',r' ', line) # remove unitelligible words
-        line = re.sub(r'\(\.+\)',r' ', line) # remove pauses eg. (.) or (..)
-        line = re.sub(r'\[\/+\]',r' ', line) # remove forward slashes in square brackets
-        line = re.sub(r'\&\=\S+\s+',r' ', line) # remove noise indicators eg. &=breath
+    if not os.path.exists("data/wls_totoal.csv"):
+        _dir_wls = '/edata/wls/wls_activity_transcripts/'
+        wls_control_input = [open(filename, encoding='cp1252').read() for filename in glob.glob(_dir_wls+"*.txt")]
+        clean = []
+        for i, line in enumerate (wls_control_input):
+            line = re.sub(r'\&\=clears\s+throat',r' ',line) # throat clears
+            line = re.sub(r'(\w+)\((\w+)\)',r'\1\2',line) # open parentheses e.g, comin(g)
+            line = re.sub(r'\((\w+)\)(\w+)',r'\1\2',line) # open parentheses e.g, (be)coming
+            line = re.sub(r'\s+\w+\s+\[\:\s+([^\]]+)\]',r' \1 ', line) # open square brackets eg. [: overflowing] - error replacements
+            line = re.sub(r'\&\w+\s+',r' ', line) # remove disfluencies prefixed with "&"
+            line = re.sub(r'xxx',r' ', line) # remove unitelligible words
+            line = re.sub(r'\(\.+\)',r' ', line) # remove pauses eg. (.) or (..)
+            line = re.sub(r'\[\/+\]',r' ', line) # remove forward slashes in square brackets
+            line = re.sub(r'\&\=\S+\s+',r' ', line) # remove noise indicators eg. &=breath
 
-        line = re.sub(r'\*PAR\:',r' ', line) # remove turn identifiers
-        line = re.sub(r'\[(\*|\+|\%)[^\]]+\]',r' ', line) # remove star or plus and material inside square brackets indicating an error code
-        line = re.sub(r'\[(\=\?)[^\]]+\]',r' ', line)
+            line = re.sub(r'\*PAR\:',r' ', line) # remove turn identifiers
+            line = re.sub(r'\[(\*|\+|\%)[^\]]+\]',r' ', line) # remove star or plus and material inside square brackets indicating an error code
+            line = re.sub(r'\[(\=\?)[^\]]+\]',r' ', line)
 
-        line = re.sub(r'[^A-Za-z\n \']','',line) # finally remove all non alpha characters
+            line = re.sub(r'[^A-Za-z\n \']','',line) # finally remove all non alpha characters
 
-        #line = "<s> "+ line + "</s>" # format with utterance start and end symbols
-        line = re.sub(r'\s+',' ',line) # replace multiple spaces with a single space
-        line = line.lower() # lowercase
-        clean.append(line)
-    wls_control_text = clean
-    wls_control_names = [filename.replace('/edata/wls/wls_activity_transcripts/','') for filename in glob.glob(_dir_wls+"/*.txt")]
-    wls_control_frame = pd.DataFrame(list(zip(wls_control_names,wls_control_text)),columns=['file','text'])
-    wls_meta = pd.read_csv('/edata/wls/wls_metadata/WLS_data_05202020.csv')
-    var = ['idpriv', 'rtype', 'z_gi206re', 'z_gi210rec','z_gi306re', 'z_gi310rec',
-            'z_gx209lre', 'z_gx209sre', 
-            'z_gx361re', 'z_gx362are', 'z_gx362bre', 'z_gv032are', 
-            'z_gv032bre', 'z_ga003re', 'z_gb001re', 'z_sexrsp']
-    wls_meta = wls_meta[var]
-    wls_meta.columns = ['idpriv', 'rtype','flu_letter', 'flu_letterScore',
-                        'flu_animal', 'flu_animalScore', 'cog_level', 'cog_score',
-                        'mental_diag', 'mental_icd1', 'mental_icd2', 'ill_cond1',
-                        'ill_cond2', 'age', 'edu', 'sex']
-    wls_meta = wls_meta.dropna(how='any').reset_index(drop=True)
-    flu_animalCat = []
-    for i in range(len(wls_meta)):
-        if wls_meta['flu_animalScore'][i] == 'NOT ASCERTAINED':
-            lettercat = None
-        elif wls_meta['flu_animalScore'][i] == 'refused':
-            lettercat = None
-        elif int(wls_meta['flu_animalScore'][i]) < 12:
-            lettercat = 1
-        elif int(wls_meta['flu_animalScore'][i]) < 14:
-            if wls_meta['age'][i] > 80:
-                lettercat = 0
-            elif wls_meta['age'][i] == 80:
-                lettercat = 0
-            else:
+            #line = "<s> "+ line + "</s>" # format with utterance start and end symbols
+            line = re.sub(r'\s+',' ',line) # replace multiple spaces with a single space
+            line = line.lower() # lowercase
+            clean.append(line)
+        wls_control_text = clean
+        wls_control_names = [filename.replace('/edata/wls/wls_activity_transcripts/','') for filename in glob.glob(_dir_wls+"/*.txt")]
+        wls_control_frame = pd.DataFrame(list(zip(wls_control_names,wls_control_text)),columns=['file','text'])
+        wls_meta = pd.read_csv('/edata/wls/wls_metadata/WLS_data_05202020.csv')
+        var = ['idpriv', 'rtype', 'z_gi206re', 'z_gi210rec','z_gi306re', 'z_gi310rec',
+                'z_gx209lre', 'z_gx209sre', 
+                'z_gx361re', 'z_gx362are', 'z_gx362bre', 'z_gv032are', 
+                'z_gv032bre', 'z_ga003re', 'z_gb001re', 'z_sexrsp']
+        wls_meta = wls_meta[var]
+        wls_meta.columns = ['idpriv', 'rtype','flu_letter', 'flu_letterScore',
+                            'flu_animal', 'flu_animalScore', 'cog_level', 'cog_score',
+                            'mental_diag', 'mental_icd1', 'mental_icd2', 'ill_cond1',
+                            'ill_cond2', 'age', 'edu', 'sex']
+        wls_meta = wls_meta.dropna(how='any').reset_index(drop=True)
+        flu_animalCat = []
+        for i in range(len(wls_meta)):
+            if wls_meta['flu_animalScore'][i] == 'NOT ASCERTAINED':
+                lettercat = None
+            elif wls_meta['flu_animalScore'][i] == 'refused':
+                lettercat = None
+            elif int(wls_meta['flu_animalScore'][i]) < 12:
                 lettercat = 1
-        elif int(wls_meta['flu_animalScore'][i]) < 16:
-            if wls_meta['age'][i] > 60:
-                lettercat = 0
-            elif wls_meta['age'][i] == 60:
-                lettercat = 0
+            elif int(wls_meta['flu_animalScore'][i]) < 14:
+                if wls_meta['age'][i] > 80:
+                    lettercat = 0
+                elif wls_meta['age'][i] == 80:
+                    lettercat = 0
+                else:
+                    lettercat = 1
+            elif int(wls_meta['flu_animalScore'][i]) < 16:
+                if wls_meta['age'][i] > 60:
+                    lettercat = 0
+                elif wls_meta['age'][i] == 60:
+                    lettercat = 0
+                else:
+                    lettercat = 1
             else:
-                lettercat = 1
-        else:
-            lettercat = 0
-        flu_animalCat.append(lettercat)
-    wls_meta['flu_animalCat'] = flu_animalCat
-    wls_miid = []
-    for id in wls_control_frame['file']:
-        wls_miid.append(id[:7])
-    wls_id = []
-    for id in wls_control_frame['file']:
-        wls_id.append(id[:9])
-    wls_control_frame['id'] = wls_id
-    wls_control_frame['miid'] = wls_miid
-    wls_control_frame['label'] = np.zeros(len(wls_control_frame))
-    wls_control_frame['mmse'] = np.nan
-    wls_control_frame['mmse_Fritsch'] = np.nan
-    wls_meta_noa = wls_meta[wls_meta['flu_animalCat']== 0]
-    wls_meta_nom = wls_meta_noa.loc[wls_meta_noa['mental_diag']=='no']
-    miid = []
-    miid = wls_meta_nom['idpriv'].astype(str) + wls_meta_nom['rtype']
-    wls_control_frame_n = wls_control_frame[wls_control_frame['miid'].isin(miid)]
-    wls_meta_nom['miid'] = miid
-    wls_frame_total = pd.merge(wls_control_frame_n, wls_meta_nom, on=['miid'])
-    wls_frame_total.rename(columns={'id_x':'id'}, inplace=True)
-    wls_frame_total.to_csv("data/wls_totoal.csv", index=False)
+                lettercat = 0
+            flu_animalCat.append(lettercat)
+        wls_meta['flu_animalCat'] = flu_animalCat
+        wls_miid = []
+        for id in wls_control_frame['file']:
+            wls_miid.append(id[:7])
+        wls_id = []
+        for id in wls_control_frame['file']:
+            wls_id.append(id[:9])
+        wls_control_frame['id'] = wls_id
+        wls_control_frame['miid'] = wls_miid
+        wls_control_frame['label'] = np.zeros(len(wls_control_frame))
+        wls_control_frame['mmse'] = np.nan
+        wls_control_frame['mmse_Fritsch'] = np.nan
+        wls_meta_noa = wls_meta[wls_meta['flu_animalCat']== 0]
+        wls_meta_nom = wls_meta_noa.loc[wls_meta_noa['mental_diag']=='no']
+        miid = []
+        miid = wls_meta_nom['idpriv'].astype(str) + wls_meta_nom['rtype']
+        wls_control_frame_n = wls_control_frame[wls_control_frame['miid'].isin(miid)]
+        wls_meta_nom['miid'] = miid
+        wls_frame_total = pd.merge(wls_control_frame_n, wls_meta_nom, on=['miid'])
+        wls_frame_total.rename(columns={'id_x':'id'}, inplace=True)
+        wls_frame_total.to_csv("data/wls_totoal.csv", index=False)
 
 
 def read_data(prefix_path, data_type):

@@ -3,6 +3,7 @@ starter script
 """
 
 import os
+import pandas as pd
 from util_fun import read_data, evaluate_model_with_output
 from util_fun import process_wls_data
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
@@ -25,25 +26,32 @@ if not os.path.isdir("../results/"):
 if not os.path.isdir("../results/cache-original/"):
     os.mkdir("../results/cache-original/")
 # address dataset
-train_con = read_data(PERFIX_ADD_TRAIN_CON, TRANS_DICT[PERFIX_ADD_TRAIN_CON])
-train_dem = read_data(PERFIX_ADD_TRAIN_DEM, TRANS_DICT[PERFIX_ADD_TRAIN_DEM])
-test_frame = read_data(PERFIX_ADD_TEST, TRANS_DICT[PERFIX_ADD_TEST])
-train_frame = train_con.append(train_dem)
-train_frame = train_frame.sample(frac=1)
-test_frame = test_frame.sample(frac=1)
-# save transcripts as local csv file
-train_frame.to_csv("data/address_train.csv", index=False)
-test_frame.to_csv("data/address_test.csv", index=False)
+if not os.path.exists("data/address_train.csv") and \
+    not os.path.exists("data/address_test.csv") and \
+        not os.path.exists("data/bird_frame.csv"):
+    train_con = read_data(PERFIX_ADD_TRAIN_CON, TRANS_DICT[PERFIX_ADD_TRAIN_CON])
+    train_dem = read_data(PERFIX_ADD_TRAIN_DEM, TRANS_DICT[PERFIX_ADD_TRAIN_DEM])
+    test_frame = read_data(PERFIX_ADD_TEST, TRANS_DICT[PERFIX_ADD_TEST])
+    train_frame = train_con.append(train_dem)
+    train_frame = train_frame.sample(frac=1)
+    test_frame = test_frame.sample(frac=1)
+    # save transcripts as local csv file
+    train_frame.to_csv("data/address_train.csv", index=False)
+    test_frame.to_csv("data/address_test.csv", index=False)
+    # bird dataset
+    bird_frame = read_data(PREFIX_BIRD, TRANS_DICT[PREFIX_BIRD])
+    bird_frame.to_csv("data/bird_frame.csv", index=False)
+train_frame = pd.read_csv("data/address_train.csv")
+test_frame = pd.read_csv("data/address_test.csv")
 # subset transcripts with >20 mmse
-train_mild_frame = train_frame[train_frame["mmse"] > 20]
-test_mild_frame = test_frame[test_frame["mmse"] > 20]
+train_mild_frame = train_frame[train_frame["mmse"] > 24]
+print("train mild dataset shape {}".format(train_mild_frame.shape))
+test_mild_frame = test_frame[test_frame["mmse"] > 24]
+print("test mild dataset shape {}".format(test_mild_frame.shape))
 train_mild_frame.to_csv("data/address_train_mild.csv", index=False)
 test_mild_frame.to_csv("data/address_test_mild.csv", index=False)
 # WLS dataset
 process_wls_data()
-# bird dataset
-bird_frame = read_data(PREFIX_BIRD, TRANS_DICT[PREFIX_BIRD])
-bird_frame.to_csv("data/bird_frame.csv", index=False)
 # evaluation on the original GPT-2 model
 con_model = GPT2LMHeadModel.from_pretrained("gpt2")
 gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
