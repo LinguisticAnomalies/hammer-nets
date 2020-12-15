@@ -44,12 +44,19 @@ if not os.path.exists("data/address_train.csv") and \
 train_frame = pd.read_csv("data/address_train.csv")
 test_frame = pd.read_csv("data/address_test.csv")
 # subset transcripts with >20 mmse
-train_mild_frame = train_frame[train_frame["mmse"] > 24]
+train_mild_frame = train_frame[train_frame["mmse"] > 20]
 print("train mild dataset shape {}".format(train_mild_frame.shape))
-test_mild_frame = test_frame[test_frame["mmse"] > 24]
+test_mild_frame = test_frame[test_frame["mmse"] > 20]
 print("test mild dataset shape {}".format(test_mild_frame.shape))
 train_mild_frame.to_csv("data/address_train_mild.csv", index=False)
 test_mild_frame.to_csv("data/address_test_mild.csv", index=False)
+# subset transcripts with >24 mmse
+train_slight_frame = train_frame[train_frame["mmse"] > 24]
+print("train slight dataset shape {}".format(train_slight_frame.shape))
+test_slight_frame = test_frame[test_frame["mmse"] > 24]
+print("test slight dataset shape {}".format(test_slight_frame.shape))
+train_mild_frame.to_csv("data/address_train_slight.csv", index=False)
+test_mild_frame.to_csv("data/address_test_slight.csv", index=False)
 # WLS dataset
 process_wls_data()
 # evaluation on the original GPT-2 model
@@ -59,8 +66,14 @@ evaluate_model_with_output(train_frame, con_model,
                            gpt_tokenizer, "../results/cache-original/", "con_full_train.json")
 evaluate_model_with_output(test_frame, con_model,
                            gpt_tokenizer, "../results/cache-original/", "con_full_test.json")
+
 evaluate_model_with_output(train_mild_frame, con_model,
                            gpt_tokenizer, "../results/cache-original/", "con_mild_train.json")
 evaluate_model_with_output(test_mild_frame, con_model,
                            gpt_tokenizer, "../results/cache-original/", "con_mild_test.json")
+
+evaluate_model_with_output(train_slight_frame, con_model,
+                           gpt_tokenizer, "../results/cache-original/", "con_slight_train.json")
+evaluate_model_with_output(test_slight_frame, con_model,
+                           gpt_tokenizer, "../results/cache-original/", "con_slight_test.json")
 

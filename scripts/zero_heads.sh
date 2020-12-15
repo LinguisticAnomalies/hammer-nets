@@ -11,7 +11,7 @@ for style in "onetime" "accumu" "comb"
             do
             echo ""
             echo "Zeroing" $share"% attn heads with style "$style
-            python -W ignore zero_attn_heads.py --style $style --share $share --text no
+            python -W ignore zero_attn_heads.py --style $style --share $share --text yes
             echo ""
             done
     done

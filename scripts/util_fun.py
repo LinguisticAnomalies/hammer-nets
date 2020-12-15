@@ -28,6 +28,17 @@ con_case = "okay the little boy is on a stool about to fall. the stool's about t
 dem_case = "well the little kid's falling off his stool. and the mother is having water run over the sink. well the water's running on the floor. under her feet. i'm looking outside but that yard is okay. the windows are open. the little girl is laughing at the boy falling off the chair. that that's bad."
 
 
+def check_folder(folder_path):
+    """
+    check if folder exists
+
+    :param folder_path: path to the folder
+    :type folder_path: str
+    """
+    if not os.path.isdir(folder_path):
+        os.mkdir(folder_path)
+
+
 def str2bool(v):
     """
     convert user input into boolean value
@@ -568,6 +579,54 @@ def break_attn_heads_by_layer(model, share, layer, style):
             for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
                 np.random.shuffle(model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset] )
         return model
+
+
+def generate_texts(model_con, model_dem, tokenizer, input_frame, output_file):
+    """
+    generate additional 20 characters with input dataframe and control/dementia model
+    save the generate text to local file
+
+    :param model_con: the control model
+    :type model_con: transformers.modeling_gpt2.GPT2LMHeadModel
+    :param model_dem: the dementia model
+    :type model_dem: transformers.modeling_gpt2.GPT2LMHeadModel
+    :param tokenizer: the GPT-2 tokenizer
+    :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
+    :param input_frame: the dataframe with all transcripts
+    :type input_frame: pd.DataFrame
+    :param output_file: the file path for saving generated text
+    :type output_file: str
+    """
+    check_file(output_file)
+    for _, row in input_frame.iterrows():
+        prompt = row["text"]
+        encoded_input = tokenizer.encode(prompt, add_special_tokens=True, return_tensors="pt")
+        if USE_GPU:
+            encoded_input = encoded_input.to(DEVICE)
+            model_con = model_con.to(DEVICE)
+            model_dem = model_dem.to(DEVICE)
+        prompt_length = len(tokenizer.decode(encoded_input[0], skip_special_tokens=True,
+                            clean_up_tokenization_spaces=True))
+        # generate text with control model
+        con_output = model_con.generate(encoded_input, max_length=prompt_length+20, num_beams=5,
+                                        no_repeat_ngram_size=1, num_return_sequences=5, early_stopping=True)
+        con_output = tokenizer.decode(con_output[0], skip_special_tokens=True)[prompt_length:]
+        con_output = re.sub(r"\s+", " ", con_output, flags=re.UNICODE)
+        con_output = re.sub('"', "", con_output)
+        # generate text with dementia model
+        dem_output = model_dem.generate(encoded_input, max_length=prompt_length+20, num_beams=5,
+                                        no_repeat_ngram_size=1, num_return_sequences=5, early_stopping=True)
+        dem_output = tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_length:]
+        dem_output = re.sub(r"\s+", " ", dem_output, flags=re.UNICODE)
+        dem_output = re.sub('"', "", dem_output)
+        eval_dict = {"file":row["file"], "con_text":con_output,
+                     "dem_text": dem_output, "label": row["label"]}
+        with open(output_file, "a") as out_f:
+                json.dump(eval_dict, out_f)
+                out_f.write("\n")
+    del model_con, model_dem
+    torch.cuda.empty_cache()
+    return text_df
 
 
 def generate_dem_text(model, tokenizer):
