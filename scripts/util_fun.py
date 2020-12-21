@@ -3,6 +3,7 @@ Utility functions
 """
 
 import os
+import random
 import re
 import glob
 import warnings
@@ -21,11 +22,6 @@ from sklearn.metrics import roc_curve, auc
 warnings.filterwarnings('ignore')
 DEVICE = "cuda"
 USE_GPU = True
-head_offsets = [1536, 1536+64, 1536+128, 1536+192, 1536+256,
-                1536+320, 1536+384, 1536+448, 1536+512,
-                1536+576, 1536+640, 1536+704]
-con_case = "okay the little boy is on a stool about to fall. the stool's about to upset. and he has a cookie in each hand handing about to hand one. and the water is running over into the dishpan there or into. and the mother or the lady is standing there drying a dish. two two cups and a plate are on the counter there. and and out the window there's a walkway and and. what's happening you said huh. okay that's that's what's happening i guess. thank"
-dem_case = "well the little kid's falling off his stool. and the mother is having water run over the sink. well the water's running on the floor. under her feet. i'm looking outside but that yard is okay. the windows are open. the little girl is laughing at the boy falling off the chair. that that's bad."
 
 
 def check_folder(folder_path):
@@ -550,7 +546,7 @@ def read_json(full_path):
     return df_con
 
 
-def break_attn_heads_by_layer(model, share, layer, style):
+def break_attn_heads_by_layer(model, share, layer):
     """
     set certain percentage attention heads to zero at specific layer
     return the modified model
@@ -562,23 +558,28 @@ def break_attn_heads_by_layer(model, share, layer, style):
     :param layer: the specific layer to be modified,
                   ranging from 0 to 11
     :type layer: int
-    :param style: shuffle type, choice between 'zero' or 'shuffle'
-    :type style: str
+
     :return: the modified model
     :rtype: transformers.modeling_gpt2.GPT2LMHeadModel
     """
+    random.seed(42)
+    torch.manual_seed(42)
+    head_offsets = [1536, 1536+64, 1536+128, 1536+192, 1536+256,
+                    1536+320, 1536+384, 1536+448, 1536+512,
+                    1536+576, 1536+640, 1536+704]
     offset = int(64*(share/100))
-    if style == "zero":
-        for head in head_offsets:
-            for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
-                model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset] = \
-                    model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset].mul(0)
-        return model
-    else:
-        for head in head_offsets:
-            for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
-                np.random.shuffle(model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset] )
-        return model
+    batch = 64
+    # randomly assign certain share of attention heads to zero
+    random_list = random.sample([1] * offset + [0]*(batch-offset), batch)
+    # if in the current index, the random list is 1,
+    # then change the corresponding attention head from the model to 0
+    for head in head_offsets:
+        for i in range(64):
+            if random_list[i] == 1:
+                for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
+                    model.transformer.h[layer].attn.c_attn.weight[row][head+i] = \
+                        model.transformer.h[layer].attn.c_attn.weight[row][head+i].mul(0)
+    return model
 
 
 def generate_texts(model_con, model_dem, tokenizer, input_frame, output_file):
@@ -597,7 +598,6 @@ def generate_texts(model_con, model_dem, tokenizer, input_frame, output_file):
     :param output_file: the file path for saving generated text
     :type output_file: str
     """
-    check_file(output_file)
     for _, row in input_frame.iterrows():
         prompt = row["text"]
         encoded_input = tokenizer.encode(prompt, add_special_tokens=True, return_tensors="pt")
@@ -618,41 +618,8 @@ def generate_texts(model_con, model_dem, tokenizer, input_frame, output_file):
                                         no_repeat_ngram_size=1, num_return_sequences=5, early_stopping=True)
         dem_output = tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_length:]
         dem_output = re.sub(r"\s+", " ", dem_output, flags=re.UNICODE)
-        dem_output = re.sub('"', "", dem_output)
         eval_dict = {"file":row["file"], "con_text":con_output,
                      "dem_text": dem_output, "label": row["label"]}
         with open(output_file, "a") as out_f:
                 json.dump(eval_dict, out_f)
                 out_f.write("\n")
-    del model_con, model_dem
-    torch.cuda.empty_cache()
-    return text_df
-
-
-def generate_dem_text(model, tokenizer):
-    """
-    use the demenia model to generate text and print out the generated text
-    use the first 5 sentences for dementia transcript as prompt input,
-    generate up tp 120 characters based on the prompt input and modified model
-
-    :param model: the model for dementia simulation
-    :type model: transformers.modeling_gpt2.GPT2LMHeadModel
-    :param tokenizer: the GPT-2 tokenizer
-    :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
-    :return: the generated text
-    :rtype: str
-    """
-    dem_padded_text = ".".join(dem_case.split(".")[:5])
-    dem_input = tokenizer.encode(dem_padded_text, add_special_tokens=True, return_tensors="pt")
-    if USE_GPU:
-        dem_input = dem_input.to(DEVICE)
-        model = model.to(DEVICE)
-    prompt_dem_length = len(tokenizer.decode(dem_input[0], skip_special_tokens=True,
-                            clean_up_tokenization_spaces=True))
-    # dem_output = model.generate(dem_input, max_length=120, do_sample=True, top_k=60, top_p=0.95)
-    dem_output = model.generate(dem_input, max_length=100, num_beams=5,
-                                no_repeat_ngram_size=1, num_return_sequences=5, early_stopping=True)
-    
-    output = tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_dem_length:]
-    output = re.sub(r"\s+", " ", output, flags=re.UNICODE)
-    return output

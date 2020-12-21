@@ -4,6 +4,7 @@ Zeroing attention heads in each layer, in terms of ont-time or accumulately.
 
 
 import sys
+import os
 import argparse
 import pandas as pd
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
@@ -17,18 +18,24 @@ from util_fun import str2bool, generate_texts, check_folder
 gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
 # TODO: better dataset loader
 # TODO: maybe add to script argument?
-DATA_TYPE="full"
+# use GPU 2
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
+'''
 train_frame = pd.read_csv("data/address_train.csv")
 test_frame = pd.read_csv("data/address_test.csv")
 con_train_res = read_json("../results/cache-original/con_full_train.json")
 con_test_res = read_json("../results/cache-original/con_full_test.json")
-'''
+
 train_frame = pd.read_csv("data/address_train_mild.csv")
 test_frame = pd.read_csv("data/address_test_mild.csv")
 con_train_res = read_json("../results/cache-original/con_mild_train.json")
 con_test_res = read_json("../results/cache-original/con_mild_test.json")
 '''
+train_frame = pd.read_csv("data/address_train_slight.csv")
+test_frame = pd.read_csv("data/address_test_slight.csv")
+con_train_res = read_json("../results/cache-original/con_slight_train.json")
+con_test_res = read_json("../results/cache-original/con_slight_test.json")
 
 
 def parse_args():
@@ -178,10 +185,9 @@ def onetime_train_process(share, generate_text):
                 "test_ratio_auc": [], "test_ratio_accu": [],
                 "train_log_auc": [], "train_log_accu": [],
                 "test_log_auc": [], "test_log_accu": []}
-    style = "zero"
     for i in range(0, 12):
         model_con = GPT2LMHeadModel.from_pretrained("gpt2")
-        model_modified = break_attn_heads_by_layer(model_con, share, i, style)
+        model_modified = break_attn_heads_by_layer(model_con, share, i)
         if not generate_text:
             res_dict = form_res_dict(model_modified, res_dict)
         else:
@@ -190,8 +196,6 @@ def onetime_train_process(share, generate_text):
             test_file = "../results/cache-onetime/{}_test_layer_{}_share_{}.csv".format(DATA_TYPE, i, share)
             generate_texts(model_con, model_modified, gpt_tokenizer, train_frame, train_file)
             generate_texts(model_con, model_modified, gpt_tokenizer, test_frame, test_file)
-            train_df.to_csv(train_file, index=False)
-            test_df.to_csv(test_file, index=False)
     print_dict_values(res_dict)
 
 
@@ -210,14 +214,13 @@ def accumu_train_process(share, num_layers, generate_text, res_dict):
     :return: the dict for storing evaluation results
     :rtype: dict
     """
-    style = "zero"
     if num_layers > 13:
         raise ValueError("GPT-2 model only has 12 layers")
     model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
     model_con = GPT2LMHeadModel.from_pretrained("gpt2")
     for i in range(0, num_layers):
         # be aware that zeroing the first layer = zeroing 0th layer in GPT-2 model
-        model_dem = break_attn_heads_by_layer(model_dem, share, i, style)
+        model_dem = break_attn_heads_by_layer(model_dem, share, i)
     if generate_text:
         check_folder("../results/cache-accumu/")
         train_file = "../results/cache-accumu/{}_train_layer_{}_share_{}.csv".format(DATA_TYPE,
@@ -240,7 +243,6 @@ def comb_train_process(share, generate_text):
     :param generate_text: the indicator if the text generation is needed
     :type generate_text: bool
     """
-    style = "zero"
     res_dict = {"train_con_auc": [], "train_con_accu": [],
                 "test_con_auc": [], "test_con_accu": [],
                 "train_diff_auc": [], "train_diff_accu": [],
@@ -253,7 +255,7 @@ def comb_train_process(share, generate_text):
     model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
     model_con = GPT2LMHeadModel.from_pretrained("gpt2")
     for layer in layers:
-        model_dem = break_attn_heads_by_layer(model_dem, share, layer, style)
+        model_dem = break_attn_heads_by_layer(model_dem, share, layer)
     if generate_text:
         check_folder("../results/cache-comb/")
         train_file = "../results/cache-comb/{}_train_share_{}.csv".format(DATA_TYPE, share)
