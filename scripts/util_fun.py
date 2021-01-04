@@ -3,6 +3,7 @@ Utility functions
 """
 
 import os
+import gc
 import random
 import re
 import glob
@@ -10,7 +11,6 @@ import warnings
 import pickle
 import math
 import sys
-import json
 import argparse
 import pandas as pd
 import numpy as np
@@ -22,6 +22,7 @@ from sklearn.metrics import roc_curve, auc
 warnings.filterwarnings('ignore')
 DEVICE = "cuda"
 USE_GPU = True
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 def check_folder(folder_path):
@@ -218,7 +219,7 @@ def process_wls_data():
         wls_meta_nom['miid'] = miid
         wls_frame_total = pd.merge(wls_control_frame_n, wls_meta_nom, on=['miid'])
         wls_frame_total.rename(columns={'id_x':'id'}, inplace=True)
-        wls_frame_total.to_csv("data/wls_totoal.csv", index=False)
+        wls_frame_total.to_csv("data/wls_totoal.tsv", index=False, sep="\t")
 
 
 def read_data(prefix_path, data_type):
@@ -379,30 +380,35 @@ def model_driver(input_text, model, tokenizer):
         input_ids = input_ids.to(DEVICE)
         att_mask = att_mask.to(DEVICE)
         outputs = model(input_ids, attention_mask=att_mask, labels=input_ids)
+        del input_ids, att_mask
+        gc.collect()
         return outputs
     else:
         input_ids = encodings["input_ids"]
         att_mask = encodings["attention_mask"]
         outputs = model(input_ids, attention_mask=att_mask, labels=input_ids)
+        del input_ids, att_mask
+        gc.collect()
         return outputs
 
 
-def evaluate_model_without_output(test_frame, model, tokenizer):
+def evaluate_model(test_frame, model, tokenizer):
     """
-    evaluate the test dataframe with modeified model,
-    save the result to a dataframe and return it
+    evaluate the test dataframe with modified model,
+    if output is True, then save the results to local file,
+    else returns the results as a dataframe
+
     :param test_frame: the input dataset for evaluation
     :type test_frame: pandas.DataFrame
     :param model: the modified model
     :type model: transformers.modeling_gpt2.GPT2LMHeadModel
     :param tokenizer: the gpt-2 tokenizer
     :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
-    
-    :return: the dataframe with evaluation results
+    :return: a dataframe
     :rtype: pandas.DataFrame
     """
-    res_df = pd.DataFrame(columns=["file", "label", "perplexity"])
     model.eval()
+    res_df = pd.DataFrame(columns=["file", "label", "perplexity"])
     if USE_GPU:
         model.to(DEVICE)
     for _, row in test_frame.iterrows():
@@ -414,54 +420,15 @@ def evaluate_model_without_output(test_frame, model, tokenizer):
             eval_dict = {"file": row["file"],
                         "label": row["label"],
                         "perplexity": perp}
+            del outputs, trans
+            gc.collect()
             res_df = res_df.append(eval_dict, ignore_index=True)
     return res_df
 
 
-def evaluate_model_with_output(test_frame, model, tokenizer, output_prefix, out_file):
+def calculate_accuracy(labels, perp):
     """
-    evaluate the test dataframe with modeified model,
-    save the result to a local file
-
-    :param test_frame: the input dataframe for evaluation
-    :type test_frame: Pandas.DataFrame
-    :param model: the GPT-2 model for evaluation
-    :type model: transformers.modeling_gpt2.GPT2LMHeadModel
-    :param tokenizer: the GPT-2 tokenizer
-    :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
-    :param output_prefix: the folder prefix for the local file
-    :type output_prefix: str
-    :param out_file: the file name for the local file
-    :type out_file: str
-    """
-    if not os.path.isdir(output_prefix):
-        os.mkdir(output_prefix)
-    out_file = output_prefix + out_file
-    if os.path.exists(out_file):
-        sys.stdout.write("file exists, needs to delete it first\n")
-        command = "rm " + out_file
-        os.system(command)
-    test_frame = test_frame.sample(frac=1)
-    model.eval()
-    if USE_GPU:
-        model.to(DEVICE)
-    for _, row in test_frame.iterrows():
-        with torch.no_grad():
-            trans = row["text"]
-            outputs = model_driver(trans, model, tokenizer)
-            # calculate perplexity score
-            perp = math.exp(outputs[0].item())
-            eval_dict = {"file": row["file"],
-                        "label": row["label"],
-                        "perplexity": perp}
-            with open(out_file, "a") as out_f:
-                json.dump(eval_dict, out_f)
-                out_f.write("\n")
-
-
-def calcualte_accuracy(labels, perp):
-    """
-    calcualte accuracy given labels and perpelxity scores
+    calculate accuracy given labels and perpelxity scores
 
     :param labels: the transcript labels
     :type labels: list
@@ -496,7 +463,7 @@ def calculate_auc_for_diff_model(labels, con_col, dem_col):
     labels = labels.values.tolist()
     diff_perp = con_col - dem_col
     diff_perp = diff_perp.values.tolist()
-    return calcualte_accuracy(labels, diff_perp)
+    return calculate_accuracy(labels, diff_perp)
 
 
 def calculate_auc_for_ratio_model(labels, con_col, dem_col):
@@ -514,7 +481,7 @@ def calculate_auc_for_ratio_model(labels, con_col, dem_col):
     labels = labels.values.tolist()
     ratio_perp = con_col/dem_col
     ratio_perp = ratio_perp.values.tolist()
-    return calcualte_accuracy(labels, ratio_perp)
+    return calculate_accuracy(labels, ratio_perp)
 
 
 def calculate_auc_for_log_model(labels, con_col, dem_col):
@@ -532,24 +499,104 @@ def calculate_auc_for_log_model(labels, con_col, dem_col):
     labels = labels.values.tolist()
     log_perp = np.log(con_col) - np.log(dem_col)
     log_perp = log_perp.values.tolist()
-    return calcualte_accuracy(labels, log_perp)
+    return calculate_accuracy(labels, log_perp)
 
 
-def read_json(full_path):
+def calculate_aucs(eva_method, full_res):
     """
-    read json output files and store as pandas dataframe
-    :param str full_path: the full path to the json file
-    :param str file_type: 
+    calcualte different aucs with given folder prefix and evaluation method
+
+    :param eva_method: the evaluation method
+    :type eva_method: str
+    :param full_res: the dataframe with merged results
+    :type full_res: pandas.DataFrame
+    :return: the AUC for the given evaluation metrics
     """
-    df_con = pd.read_json(full_path, orient="records", lines=True)
-    df_con.columns = ["file", "label", "control"]
-    return df_con
+    if eva_method == "diff":
+        # calculate AUC for c-d model
+        aucs = calculate_auc_for_diff_model(full_res["label"],
+                                            full_res["con_perp"],
+                                            full_res["dem_perp"])
+    elif eva_method == "ratio":
+        # calculate AUC for c/d model
+        aucs = calculate_auc_for_ratio_model(full_res["label"],
+                                             full_res["con_perp"],
+                                             full_res["dem_perp"])
+    else:
+        aucs = calculate_auc_for_log_model(full_res["label"],
+                                           full_res["con_perp"],
+                                           full_res["dem_perp"])
+    return aucs
 
 
-def break_attn_heads_by_layer(model, share, layer):
+def calculate_metrics(res_dict, model_dem, tokenizer, train_set_name, test_set_name):
+    """
+    evaluate the dementia model and calculate AUC and accuracy on given training and test dataset
+
+    :param res_dict: a dictionary to store all metrics
+    :type res_dict: dict
+    :param model_dem: the modified model serving as dementia
+    :type model_dem: transformers.modeling_gpt2.GPT2LMHeadModel
+    :param tokenizer: the gpt-2 tokenizer
+    :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
+    :param train_set_name: the name for training set, extention not included
+    :type train_set_name: str
+    :param test_set_name: the name for test set, extention not included
+    :type test_set_name: str
+    :param res_dict: the dictionary with metrics under current dementia model
+    :type res_dict: dict
+    """
+    # load transcript data
+    train_file = "data/{}.tsv".format(train_set_name)
+    test_file = "data/{}.tsv".format(test_set_name)
+    train_df = pd.read_csv(train_file, sep="\t")
+    test_df = pd.read_csv(test_file, sep="\t")
+    # evaluate the dementia model
+    train_res = evaluate_model(train_df, model_dem, tokenizer)
+    test_res = evaluate_model(test_df, model_dem, tokenizer)
+    # load control model evaluation data
+    train_con_file = "../results/cache-original/{}.tsv".format(train_set_name)
+    test_con_file = "../results/cache-original/{}.tsv".format(test_set_name)
+    train_con_res = pd.read_csv(train_con_file, sep="\t")
+    test_con_res = pd.read_csv(test_con_file, sep="\t")
+    # merge to full evaluation data
+    full_train_res = train_con_res.merge(train_res, on="file")
+    full_train_res.columns = ["file", "label", "con_perp", "discard", "dem_perp"]
+    full_train_res = full_train_res.drop(["discard"], axis=1)
+    full_test_res = test_con_res.merge(test_res, on="file")
+    full_test_res.columns = ["file", "label", "con_perp", "discard", "dem_perp"]
+    full_test_res = full_test_res.drop(["discard"], axis=1)
+    # control model metrics on training set
+    train_labels = full_train_res["label"].values.tolist()
+    con_perp = full_train_res["con_perp"].values.tolist()
+    train_con_accu, train_con_auc = calculate_accuracy(train_labels, con_perp)
+    # control model metrics on test set
+    test_labels = full_test_res["label"].values.tolist()
+    con_perp = full_test_res["con_perp"].values.tolist()
+    test_con_accu, test_con_auc = calculate_accuracy(test_labels, con_perp)
+    # add control model metrics to dict
+    res_dict["train_con_auc"].append(round(train_con_auc, 3))
+    res_dict["train_con_accu"].append(round(train_con_accu, 3))
+    res_dict["test_con_auc"].append(round(test_con_auc, 3))
+    res_dict["test_con_accu"].append(round(test_con_accu, 3))
+    # calculate AUC and accuracy under diff, ratio and log
+    for eva_method in ("diff", "ratio", "log"):
+        train_accu, train_auc = calculate_aucs(eva_method, full_train_res)
+        test_accu, test_auc = calculate_aucs(eva_method, full_test_res)
+        res_dict["train_{}_auc".format(eva_method)].append(round(train_auc, 3))
+        res_dict["train_{}_accu".format(eva_method)].append(round(train_accu, 3))
+        res_dict["test_{}_auc".format(eva_method)].append(round(test_auc, 3))
+        res_dict["test_{}_accu".format(eva_method)].append(round(test_accu, 3))
+    return res_dict
+
+
+def break_attn_heads_by_layer(zero_type, model, share, layer):
     """
     set certain percentage attention heads to zero at specific layer
     return the modified model
+    :param zero_type: the type for zeroing attention heads,
+                      'random', 'first' and 'shuffle' are supported
+    :type zero_type: str
     :param model: the oringal GPT-2 model to be modified
     :type model: transformers.modeling_gpt2.GPT2LMHeadModel
     :param share: % of attention heads to be zeroed,
@@ -562,26 +609,43 @@ def break_attn_heads_by_layer(model, share, layer):
     :return: the modified model
     :rtype: transformers.modeling_gpt2.GPT2LMHeadModel
     """
-    random.seed(42)
-    torch.manual_seed(42)
     head_offsets = [1536, 1536+64, 1536+128, 1536+192, 1536+256,
                     1536+320, 1536+384, 1536+448, 1536+512,
                     1536+576, 1536+640, 1536+704]
-    offset = int(64*(share/100))
     batch = 64
-    # randomly assign certain share of attention heads to zero
-    random_list = random.sample([1] * offset + [0]*(batch-offset), batch)
-    # if in the current index, the random list is 1,
-    # then change the corresponding attention head from the model to 0
-    for head in head_offsets:
-        for i in range(64):
-            if random_list[i] == 1:
-                for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
-                    model.transformer.h[layer].attn.c_attn.weight[row][head+i] = \
-                        model.transformer.h[layer].attn.c_attn.weight[row][head+i].mul(0)
-    return model
+    if zero_type == 'random':
+        random.seed(42)
+        torch.manual_seed(42)
+        offset = int(batch*(share/100))
+        # randomly assign certain share of attention heads to zero
+        random_list = random.sample([1] * offset + [0]*(batch-offset), batch)
+        # if in the current index, the random list is 1,
+        # then change the corresponding attention head from the model to 0
+        for head in head_offsets:
+            for i in range(64):
+                if random_list[i] == 1:
+                    for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
+                        model.transformer.h[layer].attn.c_attn.weight[row][head+i] = \
+                            model.transformer.h[layer].attn.c_attn.weight[row][head+i].mul(0)
+        return model
+    elif zero_type == 'first':
+        offset = int(batch*(share/100))
+        for head in head_offsets:
+            for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
+                model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset] = \
+                    model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset].mul(0)
+        return model
+    elif zero_type == 'shuffle':
+        offset = int(64*(share/100))
+        for head in head_offsets:
+            for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
+                np.random.shuffle(model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset] )
+        return model
+    else:
+        raise ValueError("zeroing type is not supported!")
 
-
+'''
+# TODO: needs to rewrite
 def generate_texts(model_con, model_dem, tokenizer, input_frame, output_file):
     """
     generate additional 20 characters with input dataframe and control/dementia model
@@ -623,3 +687,4 @@ def generate_texts(model_con, model_dem, tokenizer, input_frame, output_file):
         with open(output_file, "a") as out_f:
                 json.dump(eval_dict, out_f)
                 out_f.write("\n")
+'''
