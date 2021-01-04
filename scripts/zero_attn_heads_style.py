@@ -79,7 +79,7 @@ def onetime_train_process(data_type, zero_style, share, text_generate=False):
                 "train_log_auc": [], "train_log_accu": [],
                 "test_log_auc": [], "test_log_accu": []}
     for i in range(0, 12):
-        sys.stdout.write("onetime zeroing {} {} attn heads on layer {}\n".format(zero_style, share, i))
+        sys.stdout.write("onetime zeroing {} {}% attn heads on layer {}\n".format(zero_style, share, i))
         model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
         model_dem = break_attn_heads_by_layer(zero_style, model_dem, share, i)
         if text_generate:
@@ -115,7 +115,7 @@ def accumu_model_driver(model, share, zero_style, num_layers):
     if num_layers > 13:
         raise ValueError("GPT-2 model only has 12 layers")
     for i in range(0, num_layers):
-        sys.stdout.write("accumu zeroing {} {} attn heads on layer {}\n".format(zero_style, share, i))
+        sys.stdout.write("accumu zeroing {} {}% attn heads on first {} layer(s)\n".format(zero_style, share, i))
         # be aware that zeroing the first layer = zeroing 0th layer in GPT-2 model
         model = break_attn_heads_by_layer(zero_style, model, share, i)
     return model
@@ -187,7 +187,7 @@ def combo_train_process(data_type, zero_style, share, text_generate=False):
     layers = [0, 1, 2, 3, 4, 8, 10]
     model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
     for layer in layers:
-        sys.stdout.write("combo zeroing {} {} attn heads on layer {}\n".format(zero_style, share, i))
+        sys.stdout.write("combo zeroing {} {}% attn heads on layer {}\n".format(zero_style, share, i))
         model_dem = break_attn_heads_by_layer(zero_style, model_dem, share, layer)
     if text_generate:
             # TODO: pass for now
