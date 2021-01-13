@@ -9,7 +9,7 @@ import gc
 import os
 import argparse
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
-from util_fun import calculate_metrics, break_attn_heads_by_layer, str2bool
+from util_fun import calculate_metrics, break_attn_heads_by_layer, str2bool, generate_texts
 # use GPU 2
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
@@ -19,7 +19,7 @@ def parse_args():
     add zeroing head argument
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--style", type=str,
+    parser.add_argument("--hammer_style", type=str,
                         help="the style of changing attention heads, including oneime, accumu and combo")
     parser.add_argument("--zero_style", type=str,
                         help="the style of zeroing attn heads, supporting 'random','first' and 'shuffle'")
@@ -79,7 +79,7 @@ def onetime_train_process(data_type, zero_style, share, text_generate=False):
                 "train_log_auc": [], "train_log_accu": [],
                 "test_log_auc": [], "test_log_accu": []}
     for i in range(0, 12):
-        sys.stdout.write("onetime zeroing {} {}% attn heads on layer {}\n".format(zero_style, share, i))
+        # sys.stdout.write("onetime zeroing {} {}% attn heads on layer {}\n".format(zero_style, share, i))
         model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
         model_dem = break_attn_heads_by_layer(zero_style, model_dem, share, i)
         if text_generate:
@@ -115,7 +115,7 @@ def accumu_model_driver(model, share, zero_style, num_layers):
     if num_layers > 13:
         raise ValueError("GPT-2 model only has 12 layers")
     for i in range(0, num_layers):
-        sys.stdout.write("accumu zeroing {} {}% attn heads on first {} layer(s)\n".format(zero_style, share, i))
+        # sys.stdout.write("accumu zeroing {} {}% attn heads on first {} layer(s)\n".format(zero_style, share, i))
         # be aware that zeroing the first layer = zeroing 0th layer in GPT-2 model
         model = break_attn_heads_by_layer(zero_style, model, share, i)
     return model
@@ -186,12 +186,12 @@ def combo_train_process(data_type, zero_style, share, text_generate=False):
     train_data, test_data = get_data_name(data_type)
     layers = [0, 1, 2, 3, 4, 8, 10]
     model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
+    model_con = GPT2LMHeadModel.from_pretrained("gpt2")
     for layer in layers:
-        sys.stdout.write("combo zeroing {} {}% attn heads on layer {}\n".format(zero_style, share, i))
+        # sys.stdout.write("combo zeroing {} {}% attn heads on layer {}\n".format(zero_style, share, layer))
         model_dem = break_attn_heads_by_layer(zero_style, model_dem, share, layer)
     if text_generate:
-            # TODO: pass for now
-            pass
+            generate_texts(model_con, model_dem, gpt_tokenizer)
     else:
         res_dict = calculate_metrics(res_dict, model_dem, gpt_tokenizer, train_data, test_data)
     pickle_file = "../results/comb_{}_{}_{}.pkl".format(zero_style, share, data_type)
@@ -204,11 +204,11 @@ def combo_train_process(data_type, zero_style, share, text_generate=False):
 if __name__ == "__main__":
     start_time = datetime.now()
     args = parse_args()
-    if args.style == "onetime":
+    if args.hammer_style == "onetime":
         onetime_train_process(args.data_type, args.zero_style, args.share, args.text)
-    elif args.style == "accumu":
+    elif args.hammer_style == "accumu":
         accumu_train_process(args.data_type, args.zero_style, args.share, args.text)
-    elif args.style == "combo":
+    elif args.hammer_style == "combo":
         combo_train_process(args.data_type, args.zero_style, args.share, args.text)
     else:
         raise ValueError("method not supported")

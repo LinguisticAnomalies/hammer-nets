@@ -616,17 +616,12 @@ def break_attn_heads_by_layer(zero_type, model, share, layer):
     if zero_type == 'random':
         random.seed(42)
         torch.manual_seed(42)
-        offset = int(batch*(share/100))
-        # randomly assign certain share of attention heads to zero
-        random_list = random.sample([1] * offset + [0]*(batch-offset), batch)
-        # if in the current index, the random list is 1,
-        # then change the corresponding attention head from the model to 0
+        # Serguei's approach to reduce running time
         for head in head_offsets:
-            for i in range(64):
-                if random_list[i] == 1:
-                    for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
-                        model.transformer.h[layer].attn.c_attn.weight[row][head+i] = \
-                            model.transformer.h[layer].attn.c_attn.weight[row][head+i].mul(0)
+            rnd_index = np.random.randint(head, head+63, int(64*(share/100)))
+            for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
+                model.transformer.h[layer].attn.c_attn.weight[row][rnd_index] = \
+                    model.transformer.h[layer].attn.c_attn.weight[row][rnd_index].mul(0.0)
         return model
     elif zero_type == 'first':
         offset = int(batch*(share/100))
@@ -644,9 +639,9 @@ def break_attn_heads_by_layer(zero_type, model, share, layer):
     else:
         raise ValueError("zeroing type is not supported!")
 
-'''
+
 # TODO: needs to rewrite
-def generate_texts(model_con, model_dem, tokenizer, input_frame, output_file):
+def generate_texts(model_con, model_dem, tokenizer):
     """
     generate additional 20 characters with input dataframe and control/dementia model
     save the generate text to local file
@@ -662,6 +657,28 @@ def generate_texts(model_con, model_dem, tokenizer, input_frame, output_file):
     :param output_file: the file path for saving generated text
     :type output_file: str
     """
+    prompt = "The little boy has climbed up, on a three legged stool to get some cookies from the jar in the cupboard."
+    encoded_input = tokenizer.encode(prompt, add_special_tokens=True, return_tensors="pt")
+    prompt_length = len(tokenizer.decode(encoded_input[0], skip_special_tokens=True,
+                        clean_up_tokenization_spaces=True))
+    # top 5 beam search
+    con_output = model_con.generate(encoded_input, top_p=0.9, temperature=1, max_time=5, num_beams=5, no_repeat_ngram_size=1,
+                                    num_return_sequences=5, early_stopping=False, max_length=prompt_length+20)
+    print("Control model output:\n" + 100 * '-')
+    for i, beam_output in enumerate(con_output):
+        beam_output = tokenizer.decode(beam_output, skip_special_tokens=True)[prompt_length:]
+        beam_output = re.sub(r"\s+", " ", beam_output, flags=re.UNICODE)
+        beam_output = re.sub('"', "", beam_output)
+        print("{}: {}".format(i, beam_output))
+    dem_output = model_dem.generate(encoded_input, top_p=0.9, temperature=1, max_time=5,
+                                    num_beams=5, no_repeat_ngram_size=1, num_return_sequences=5, early_stopping=False, max_length=prompt_length+20)
+    print("Dementia model output:\n" + 100 * '-')
+    for i, beam_output in enumerate(dem_output):
+        beam_output = tokenizer.decode(beam_output, skip_special_tokens=True)[prompt_length:]
+        beam_output = re.sub(r"\s+", " ", beam_output, flags=re.UNICODE)
+        beam_output = re.sub('"', "", beam_output)
+        print("{}: {}".format(i, beam_output))
+    '''
     for _, row in input_frame.iterrows():
         prompt = row["text"]
         encoded_input = tokenizer.encode(prompt, add_special_tokens=True, return_tensors="pt")
@@ -672,14 +689,16 @@ def generate_texts(model_con, model_dem, tokenizer, input_frame, output_file):
         prompt_length = len(tokenizer.decode(encoded_input[0], skip_special_tokens=True,
                             clean_up_tokenization_spaces=True))
         # generate text with control model
-        con_output = model_con.generate(encoded_input, max_length=prompt_length+20, num_beams=5,
-                                        no_repeat_ngram_size=1, num_return_sequences=5, early_stopping=True)
+        #con_output = model_con.generate(encoded_input, max_length=prompt_length+20, num_beams=5,
+        #                                no_repeat_ngram_size=1, num_return_sequences=5, early_stopping=True)
+        con_output = model_con.generate(encoded_input, top_p=0.9, temperature=1, max_time=5)
         con_output = tokenizer.decode(con_output[0], skip_special_tokens=True)[prompt_length:]
         con_output = re.sub(r"\s+", " ", con_output, flags=re.UNICODE)
         con_output = re.sub('"', "", con_output)
         # generate text with dementia model
-        dem_output = model_dem.generate(encoded_input, max_length=prompt_length+20, num_beams=5,
-                                        no_repeat_ngram_size=1, num_return_sequences=5, early_stopping=True)
+        #dem_output = model_dem.generate(encoded_input, max_length=prompt_length+20, num_beams=5,
+        #                                no_repeat_ngram_size=1, num_return_sequences=5, early_stopping=True)
+        dem_output = model_dem.generate(encoded_input, top_p=0.9, temperature=1, max_time=5)
         dem_output = tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_length:]
         dem_output = re.sub(r"\s+", " ", dem_output, flags=re.UNICODE)
         eval_dict = {"file":row["file"], "con_text":con_output,
@@ -687,4 +706,4 @@ def generate_texts(model_con, model_dem, tokenizer, input_frame, output_file):
         with open(output_file, "a") as out_f:
                 json.dump(eval_dict, out_f)
                 out_f.write("\n")
-'''
+        '''
