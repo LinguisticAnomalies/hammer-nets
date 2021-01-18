@@ -41,9 +41,9 @@ if not os.path.exists("data/address_train_full.tsv") and \
     # save transcripts as local csv file
     train_frame.to_csv("data/address_train_full.tsv", index=False, sep="\t")
     test_frame.to_csv("data/address_test_full.tsv", index=False, sep="\t")
-    # bird dataset
-    bird_frame = read_data(PREFIX_BIRD, TRANS_DICT[PREFIX_BIRD])
-    bird_frame.to_csv("data/bird_frame.tsv", index=False, sep="\t")
+# bird dataset
+bird_frame = read_data(PREFIX_BIRD, TRANS_DICT[PREFIX_BIRD])
+bird_frame.to_csv("data/bird_frame.tsv", index=False, sep="\t")
 train_frame = pd.read_csv("data/address_train_full.tsv", sep="\t")
 test_frame = pd.read_csv("data/address_test_full.tsv", sep="\t")
 # subset transcripts with >20 mmse

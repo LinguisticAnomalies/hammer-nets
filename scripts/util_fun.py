@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 import torch
 from nltk.probability import FreqDist
+from nltk.tokenize import sent_tokenize
 from sklearn.metrics import roc_curve, auc
 
 
@@ -293,7 +294,7 @@ def read_data(prefix_path, data_type):
                     for line in f:
                         line = line.strip()
                         doc_string += line
-                        doc_string += ". "
+                        doc_string += " "
                     doc_string = doc_string.replace("\n", "")
                     doc_string = doc_string.strip()
                     if filename == "mct_1_0.txt":
@@ -641,69 +642,50 @@ def break_attn_heads_by_layer(zero_type, model, share, layer):
 
 
 # TODO: needs to rewrite
-def generate_texts(model_con, model_dem, tokenizer):
+def generate_texts(model_con, model_dem, tokenizer, out_file):
     """
-    generate additional 20 characters with input dataframe and control/dementia model
-    save the generate text to local file
-
+    generate additional 20 tokens for each sentence of healthy bird transcript,
+    find the highest non-empty beam result for both dementia and control model
+    save all qualified results as a DataFrame and save to local file
     :param model_con: the control model
     :type model_con: transformers.modeling_gpt2.GPT2LMHeadModel
     :param model_dem: the dementia model
     :type model_dem: transformers.modeling_gpt2.GPT2LMHeadModel
     :param tokenizer: the GPT-2 tokenizer
     :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
-    :param input_frame: the dataframe with all transcripts
-    :type input_frame: pd.DataFrame
-    :param output_file: the file path for saving generated text
-    :type output_file: str
+    :param out_file: the name of 
     """
-    prompt = "The little boy has climbed up, on a three legged stool to get some cookies from the jar in the cupboard."
-    encoded_input = tokenizer.encode(prompt, add_special_tokens=True, return_tensors="pt")
-    prompt_length = len(tokenizer.decode(encoded_input[0], skip_special_tokens=True,
-                        clean_up_tokenization_spaces=True))
-    # top 5 beam search
-    con_output = model_con.generate(encoded_input, top_p=0.9, temperature=1, max_time=5, num_beams=5, no_repeat_ngram_size=1,
-                                    num_return_sequences=5, early_stopping=False, max_length=prompt_length+20)
-    print("Control model output:\n" + 100 * '-')
-    for i, beam_output in enumerate(con_output):
-        beam_output = tokenizer.decode(beam_output, skip_special_tokens=True)[prompt_length:]
-        beam_output = re.sub(r"\s+", " ", beam_output, flags=re.UNICODE)
-        beam_output = re.sub('"', "", beam_output)
-        print("{}: {}".format(i, beam_output))
-    dem_output = model_dem.generate(encoded_input, top_p=0.9, temperature=1, max_time=5,
-                                    num_beams=5, no_repeat_ngram_size=1, num_return_sequences=5, early_stopping=False, max_length=prompt_length+20)
-    print("Dementia model output:\n" + 100 * '-')
-    for i, beam_output in enumerate(dem_output):
-        beam_output = tokenizer.decode(beam_output, skip_special_tokens=True)[prompt_length:]
-        beam_output = re.sub(r"\s+", " ", beam_output, flags=re.UNICODE)
-        beam_output = re.sub('"', "", beam_output)
-        print("{}: {}".format(i, beam_output))
-    '''
-    for _, row in input_frame.iterrows():
-        prompt = row["text"]
-        encoded_input = tokenizer.encode(prompt, add_special_tokens=True, return_tensors="pt")
-        if USE_GPU:
-            encoded_input = encoded_input.to(DEVICE)
-            model_con = model_con.to(DEVICE)
-            model_dem = model_dem.to(DEVICE)
+    out_df = pd.DataFrame(columns=["sentence", "control", "dementia"])
+    bird_df = pd.read_csv("data/bird_frame.tsv", sep="\t")
+    bird_all = bird_df[bird_df["file"] == "mct_all.txt"]["text"].values.tolist()[0]
+    bird_sents = sent_tokenize(bird_all)
+    # iterate all senteces from healthy bird transcript
+    for sent in bird_sents:
+        encoded_input = tokenizer.encode(sent, add_special_tokens=True, return_tensors="pt")
         prompt_length = len(tokenizer.decode(encoded_input[0], skip_special_tokens=True,
                             clean_up_tokenization_spaces=True))
-        # generate text with control model
-        #con_output = model_con.generate(encoded_input, max_length=prompt_length+20, num_beams=5,
-        #                                no_repeat_ngram_size=1, num_return_sequences=5, early_stopping=True)
-        con_output = model_con.generate(encoded_input, top_p=0.9, temperature=1, max_time=5)
-        con_output = tokenizer.decode(con_output[0], skip_special_tokens=True)[prompt_length:]
-        con_output = re.sub(r"\s+", " ", con_output, flags=re.UNICODE)
-        con_output = re.sub('"', "", con_output)
-        # generate text with dementia model
-        #dem_output = model_dem.generate(encoded_input, max_length=prompt_length+20, num_beams=5,
-        #                                no_repeat_ngram_size=1, num_return_sequences=5, early_stopping=True)
-        dem_output = model_dem.generate(encoded_input, top_p=0.9, temperature=1, max_time=5)
-        dem_output = tokenizer.decode(dem_output[0], skip_special_tokens=True)[prompt_length:]
-        dem_output = re.sub(r"\s+", " ", dem_output, flags=re.UNICODE)
-        eval_dict = {"file":row["file"], "con_text":con_output,
-                     "dem_text": dem_output, "label": row["label"]}
-        with open(output_file, "a") as out_f:
-                json.dump(eval_dict, out_f)
-                out_f.write("\n")
-        '''
+        con_output = model_con.generate(encoded_input, top_p=0.9, temperature=1,
+                                        max_time=5, num_beams=5, no_repeat_ngram_size=1,
+                                        num_return_sequences=5, early_stopping=False,
+                                        max_length=prompt_length+20)
+        dem_output = model_dem.generate(encoded_input, top_p=0.9, temperature=1,
+                                        max_time=5, num_beams=5, no_repeat_ngram_size=1,
+                                        num_return_sequences=5, early_stopping=False,
+                                        max_length=prompt_length+20)
+        # find the non-empty output for both model
+        for con_beam, dem_beam in zip(con_output, dem_output):
+            # control model output
+            con_beam = tokenizer.decode(con_beam, skip_special_tokens=True)[prompt_length:]
+            con_beam = re.sub(r"\s+", " ", con_beam, flags=re.UNICODE)
+            con_beam = re.sub('"', "", con_beam)
+            # dementia model output
+            dem_beam = tokenizer.decode(dem_beam, skip_special_tokens=True)[prompt_length:]
+            dem_beam = re.sub(r"\s+", " ", dem_beam, flags=re.UNICODE)
+            dem_beam = re.sub('"', "", dem_beam)
+            # check if outputs are empty
+            # both of them are not empty
+            if con_beam.strip() and dem_beam.strip():
+                out_dict = {"sentence": sent, "control": con_beam, "dementia": dem_beam}
+                out_df = out_df.append(out_dict, ignore_index=True)
+                break
+    out_df.to_csv(out_file, index=False, sep="\t")

@@ -2,189 +2,41 @@ This repo contains codes and scripts for simulating Dementia by breaking neural 
 
 ## Folders
 
-- ```scripts```: folders that contains all codes, scripts and jupyter notebooks
-- ```results```: folders that contains the wrapped-up results from the scripts
+- ```scripts```: folder that contains all codes, scripts and jupyter notebooks
+    - ```data```: cleaned data. Data can be obtained by running ```start.py```
+- ```results```: folder that contains the wrapped-up results from the scripts
+    - ```notebooks```: folder that contains jupyter notebook visualization
+    - ```cache-original```: the original GPT-2 model evaluation result on ADDreSS dataset
 
+## Results
 
-## Combinated Layers AUC Results
+### Log Lexical Frequency
 
-|   | train mild control  | test mild control  | train mild  | test mild  | train full control  | test full control  | train full  | test full  |
-|---|---|---|---|---|---|---|---|---|
-| 25% c-d  | 0.508  | 0.779  | 0.566  | 0.738  | 0.569 | 0.759  | 0.668  | 0.738  |
-| 25% c/d  | 0.508  | 0.779  | 0.55  | 0.842  | 0.569  | 0.759  | 0.677  | 0.839  |
-| 25% log(c)-log(d)  | 0.508  | 0.779  | 0.55  | 0.842  | 0.569  | 0.759  | 0.677  | 0.839  |
-| 50% c-d  | 0.508  | 0.779  | 0.627  | 0.721  | 0.569  | 0.759  | 0.685  | 0.747  |
-| 50% c/d  | 0.508  | 0.779  | 0.566  | **0.888**  | 0.569  | 0.759  | **0.713**  | **0.901**  |
-| 50% log(c)-log(d)  | 0.508  | 0.779  | 0.566  | 0.888  | 0.569  | 0.759  | 0.713  | 0.901  |
-| 75% c-d  | 0.508  | 0.779  | **0.637**  | 0.735  | 0.569  | 0.759  | 0.706  | 0.788  |
-| 75% c/d  | 0.508  | 0.799  | 0.583  | 0.812  | 0.569  | 0.759  | 0.682  | 0.826  |
-| 75% log(c)-log(d)  | 0.508  | 0.799  | 0.583  | 0.812  | 0.569  | 0.759  | 0.682  | 0.826  |
-| 100% c-d  | 0.508  | 0.799  | 0.591  | 0.396  | 0.569  | 0.759  | 0.601  | 0.47  |
-| 100% c/d  | 0.508  | 0.799  | 0.522  | 0.729  | 0.569  | 0.759  | 0.671  | 0.79  |
-| 100% log(c)-log(d)  | 0.508  | 0.799  | 0.522  | 0.729  | 0.569  | 0.759  | 0.671  | 0.79  |
+#### Combination of Layers
 
-|   | train slight control | train slight  | test slight control  | test slight  |
-|---|---|---|---|---|
-| 25% c-d  | 0.377  | 0.592  | 0.809  | 0.821  |
-| 25% c/d  | 0.377  | 0.479  | 0.809  | 0.748  |
-| 25% log(c)-log(d)  | 0.377  | 0.479  | 0.809  | 0.748  |
-| 50% c-d  | 0.377  | 0.645  | 0.809  | 0.652  |
-| 50% c/d  | 0.377  | 0.453  | 0.809  | **0.852**  |
-| 50% log(c)-log(d)  | 0.377  | 0.453  | 0.809  | 0.852  |
-| 75% c-d  | 0.377  | 0.574  | 0.809  | 0.522  |
-| 75% c/d  | 0.377  | 0.442  | 0.809  | 0.713  |
-| 75% log(c)-log(d)  | 0.377  | 0.442  | 0.809  | 0.713  |
-| 100% c-d  | 0.377  | **0.819**  | 0.809  | 0.391  |
-| 100% c/d  | 0.377  | 0.683  | 0.809  | 0.757  |
-| 100% log(c)-log(d)  | 0.377  | 0.683  | 0.809  | 0.757  |
+##### 25% & first & full
 
-
-
-## Combined Layers Accuracy Results
-
-|   | train mild control  | test mild control  | train mild  | test mild  | train full control  | test full control  | train full  | test full  |
-|---|---|---|---|---|---|---|---|---|
-| 25% c-d  | 0.492  | 0.647  | 0.492  | 0.647  | 0.529 | 0.75  | 0.602  | 0.625  |
-| 25% c/d  | 0.492  | 0.647  | 0.508  | **0.765**  | 0.529  | 0.75  | 0.611  | **0.771**  |
-| 25% log(c)-log(d)  | 0.492  | 0.647  | 0.508  | 0.765  | 0.539  | 0.75  | 0.611  | 0.771  |
-| 50% c-d  | 0.492  | 0.647  | **0.646**  | 0.588  | 0.529  | 0.75  | 0.63  | 0.604  |
-| 50% c/d  | 0.492  | 0.647  | 0.615  | 0.676  | 0.529  | 0.75  | 0.62  | 0.75  |
-| 50% log(c)-log(d)  | 0.492  | 0.647  | 0.615  | 0.676  | 0.529  | 0.75  | 0.62  | 0.75  |
-| 75% c-d  | 0.492  | 0.647  | 0.6  | 0.735  | 0.529  | 0.75  | **0.648**  | 0.75  |
-| 75% c/d  | 0.492  | 0.647  | 0.477  | 0.706  | 0.529  | 0.75  | 0.611  | 0.708  |
-| 75% log(c)-log(d)  | 0.492  | 0.647  | 0.477  | 0.706  | 0.529  | 0.75  | 0.611  | 0.708  |
-| 100% c-d  | 0.492  | 0.647  | 0.569  | 0.324  | 0.529  | 0.75  | 0.565  | 0.417  |
-| 100% c/d  | 0.492  | 0.647  | 0.415  | 0.618  | 0.529  | 0.75  | 0.639  | 0.667  |
-| 100% log(c)-log(d)  | 0.492  | 0.647  | 0.415  | 0.618  | 0.529  | 0.75  | 0.639  | 0.667  |
-
-
-|   | train slight control | train slight  | test slight control  | test slight  |
-|---|---|---|---|---|
-| 25% c-d  | 0.431  | 0.483  | 0.821  | 0.609  |
-| 25% c/d  | 0.431  | 0.397  | 0.821  | 0.643  |
-| 25% log(c)-log(d)  | 0.431  | 0.397  | 0.821  | 0.643  |
-| 50% c-d  | 0.431  | 0.652  | 0.821  | 0.5  |
-| 50% c/d  | 0.431  | 0.414  | 0.821  | 0.643  |
-| 50% log(c)-log(d)  | 0.431  | 0.414  | 0.821  | 0.643  |
-| 75% c-d  | 0.431  | 0.655  | 0.821  | 0.571  |
-| 75% c/d  | 0.431  | 0.431  | 0.821  | **0.679**  |
-| 75% log(c)-log(d)  | 0.431  | 0.431  | 0.821  | 0.679  |
-| 100% c-d  | 0.431  | **0.897**  | 0.821  | 0.357  |
-| 100% c/d  | 0.431  | 0.655  | 0.821  | 0.607  |
-| 100% log(c)-log(d)  | 0.431  | 0.655  | 0.821  | 0.607  |
-
-
-## AUC Pearson Correlation Results on Full Dataset
-
-### Onetime
-
-|   | Correlation  | P-value  |
+| model  | log lexical frequency  |  unique token ratio %|
 |---|---|---|
-| 25% c-d | -0.029  | 0.929  |
-| 25% c/d  | 0.361  | 0.25  |
-| 50% c-d  | 0.288  | 0.364  |
-| 50% c/d  | **0.505**  | 0.094  |
-| 75% c-d  | 0.518  | 0.085  |
-| 75% c/d  | 0.457 | 0.135  |
-| 100% c-d  | 0.405  | 0.192  |
-| 100% c/d  | 0.654  | 0.021  |
+| control  | 9.5148  | 61  |
+| dementia  | 9.0731  | 62  |
 
-### Accumulated Layer-wise
+t-test p-value: 0.012383069641729295
 
-|   | Correlation  | P-value  |
+##### 50% & first & full
+
+| model  | log lexical frequency  |  unique token ratio %|
 |---|---|---|
-| 25% c-d | **0.911**  | 0.0  |
-| 25% c/d  | **0.921**  | 0.0  |
-| 50% c-d  | **0.905**  | 0.0  |
-| 50% c/d  | **0.989**  | 0.0  |
-| 75% c-d  | **0.901**  | 0.0  |
-| 75% c/d  | **0.826**  | 0.001  |
-| 100% c-d  | **0.778**  | 0.003  |
-| 100% c/d  | **0.846**  | 0.001  |
+| control  | 9.5148  | 61  |
+| dementia  | 10.0783  | 39  |
 
+t-test p-value: 0.00013840128475640006
 
-## Accuracy Pearson Correlation Results on Full Dataset
+##### 100% & first & full
 
-### Onetime
-
-|   | Correlation  | P-value  |
+| model  | log lexical frequency  |  unique token ratio %|
 |---|---|---|
-| 25% c-d | -0.259  | 0.417  |
-| 25% c/d  | 0.574  | 0.051  |
-| 50% c-d  | 0.411  | 0.184  |
-| 50% c/d  | 0.181  | 0.573  |
-| 75% c-d  | **0.581**  | 0.048  |
-| 75% c/d  | 0.202 | 0.53  |
-| 100% c-d  | 0.446  | 0.146  |
-| 100% c/d  | 0.287  | 0.365  |
+| control  | 9.5148  | 61  |
+| dementia  | 10.6922  | 28 |
 
-### Accumulated Layer-wise
-
-|   | Correlation  | P-value  |
-|---|---|---|
-| 25% c-d | **0.819**  | 0.001  |
-| 25% c/d  | **0.766**  | 0.004  |
-| 50% c-d  | **0.542**  | 0.069  |
-| 50% c/d  | **0.643**  | 0.024  |
-| 75% c-d  | **0.673**  | 0.016  |
-| 75% c/d  | 0.118  | 0.715  |
-| 100% c-d  | 0.351  | 0.264  |
-| 100% c/d  | **0.657**  | 0.02  |
-
-
-## AUC Pearson Correlation Results on Mild Dataset
-
-### Onetime
-
-|   | Correlation  | P-value  |
-|---|---|---|
-| 25% c-d | 0.179  | 0.578  |
-| 25% c/d  | 0.363  | 0.246  |
-| 50% c-d  | 0.046  | 0.888  |
-| 50% c/d  | 0.089  | 0.784  |
-| 75% c-d  | 0.216  | 0.5  |
-| 75% c/d  | **0.654** | 0.021  |
-| 100% c-d  | 0.054  | 0.868  |
-| 100% c/d  | 0.262  | 0.41  |
-
-### Accumulated Layer-wise
-
-|   | Correlation  | P-value  |
-|---|---|---|
-| 25% c-d | 0.464  | 0.129  |
-| 25% c/d  | 0.416  | 0.179  |
-| 50% c-d  | 0.336  | 0.285  |
-| 50% c/d  | 0.466  | 0.127  |
-| 75% c-d  | **0.677**  | 0.016  |
-| 75% c/d  | **0.654**  | 0.021  |
-| 100% c-d  | **0.677**  | 0.016  |
-| 100% c/d  | **0.654**  | 0.021  |
-
-
-## Accuracy Pearson Correlation Results on Mild Dataset
-
-### Onetime
-
-|   | Correlation  | P-value  |
-|---|---|---|
-| 25% c-d | -0.129  | 0.69  |
-| 25% c/d  | 0.3  | 0.343  |
-| 50% c-d  | -0.422  | 0.172  |
-| 50% c/d  | -0.236  | 0.461  |
-| 75% c-d  | 0.119  | 0.712  |
-| 75% c/d  | 0.094 | 0.772  |
-| 100% c-d  | 0.134  | 0.679  |
-| 100% c/d  | -0.108  | 0.738  |
-
-### Accumulated Layer-wise
-
-|   | Correlation  | P-value  |
-|---|---|---|
-| 25% c-d | 0.114  | 0.725  |
-| 25% c/d  | 0.134  | 0.678  |
-| 50% c-d  | 0.436  | 0.156  |
-| 50% c/d  | -0.531  | 0.075  |
-| 75% c-d  | **0.593**  | 0.042  |
-| 75% c/d  | -0.04  | 0.902  |
-| 100% c-d  | **0.593**  | 0.042  |
-| 100% c/d  | -0.04  | 0.902  |
+t-test p-value: 8.412031015701787e-19

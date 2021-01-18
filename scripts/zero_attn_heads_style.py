@@ -191,7 +191,8 @@ def combo_train_process(data_type, zero_style, share, text_generate=False):
         # sys.stdout.write("combo zeroing {} {}% attn heads on layer {}\n".format(zero_style, share, layer))
         model_dem = break_attn_heads_by_layer(zero_style, model_dem, share, layer)
     if text_generate:
-            generate_texts(model_con, model_dem, gpt_tokenizer)
+        out_file = "../results/comb_{}_{}_{}.tsv".format(zero_style, share, data_type)
+        generate_texts(model_con, model_dem, gpt_tokenizer, out_file)
     else:
         res_dict = calculate_metrics(res_dict, model_dem, gpt_tokenizer, train_data, test_data)
     pickle_file = "../results/comb_{}_{}_{}.pkl".format(zero_style, share, data_type)
