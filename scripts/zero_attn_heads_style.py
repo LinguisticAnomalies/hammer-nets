@@ -90,7 +90,7 @@ def onetime_train_process(data_type, zero_style, share, text_generate=False):
         del model_dem, model_con
         gc.collect()
     # save evaluation metrics to local pickle file
-    pickle_file = "../results/onetime_{}_{}_{}.pkl".format(zero_style, share, data_type)
+    pickle_file = "../results/evals/onetime_{}_{}_{}.pkl".format(zero_style, share, data_type)
     with open(pickle_file, "wb") as f:
         pickle.dump(res_dict, f)
     del gpt_tokenizer, res_dict
@@ -156,7 +156,7 @@ def accumu_train_process(data_type, zero_style, share, text_generate=False):
         del model_dem
         gc.collect()
         # save evaluation metrics to local pickle file
-    pickle_file = "../results/accumu_{}_{}_{}.pkl".format(zero_style, share, data_type)
+    pickle_file = "../results/evals/accumu_{}_{}_{}.pkl".format(zero_style, share, data_type)
     with open(pickle_file, "wb") as f:
         pickle.dump(res_dict, f)
     del gpt_tokenizer, res_dict, model_con
@@ -196,7 +196,7 @@ def combo_train_process(data_type, zero_style, share, text_generate=False):
         generate_texts(model_con, model_dem, gpt_tokenizer, out_file)
     else:
         res_dict = calculate_metrics(res_dict, model_dem, gpt_tokenizer, train_data, test_data)
-    pickle_file = "../results/comb_{}_{}_{}.pkl".format(zero_style, share, data_type)
+    pickle_file = "../results/evals/comb_{}_{}_{}.pkl".format(zero_style, share, data_type)
     with open(pickle_file, "wb") as f:
         pickle.dump(res_dict, f)
     del gpt_tokenizer, res_dict, model_dem
