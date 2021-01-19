@@ -80,14 +80,14 @@ def onetime_train_process(data_type, zero_style, share, text_generate=False):
                 "test_log_auc": [], "test_log_accu": []}
     for i in range(0, 12):
         # sys.stdout.write("onetime zeroing {} {}% attn heads on layer {}\n".format(zero_style, share, i))
-        model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
-        model_dem = break_attn_heads_by_layer(zero_style, model_dem, share, i)
+        model_con = GPT2LMHeadModel.from_pretrained("gpt2")
+        model_dem = break_attn_heads_by_layer(zero_style, model_con, share, i)
         if text_generate:
-            # TODO: pass for now
-            pass
+            out_file = "../results/text/onetime_{}_{}_{}_layer_{}.tsv".format(zero_style, share, data_type, i)
+            generate_texts(model_con, model_dem, gpt_tokenizer, out_file)
         else:
             res_dict = calculate_metrics(res_dict, model_dem, gpt_tokenizer, train_data, test_data)
-        del model_dem
+        del model_dem, model_con
         gc.collect()
     # save evaluation metrics to local pickle file
     pickle_file = "../results/onetime_{}_{}_{}.pkl".format(zero_style, share, data_type)
@@ -134,6 +134,7 @@ def accumu_train_process(data_type, zero_style, share, text_generate=False):
     :param text_generate: the indicator for text generation, defaults to False
     :type text_generate: bool, optional
     """
+    model_con = GPT2LMHeadModel.from_pretrained("gpt2")
     gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
     train_data, test_data = get_data_name(data_type)
     res_dict = {"train_con_auc": [], "train_con_accu": [],
@@ -148,8 +149,8 @@ def accumu_train_process(data_type, zero_style, share, text_generate=False):
         model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
         model_dem = accumu_model_driver(model_dem, share, zero_style, accu_layer)
         if text_generate:
-            # TODO: pass for now
-            pass
+            out_file = "../results/text/accumu_{}_{}_{}_layer_{}.tsv".format(zero_style, share, data_type, accu_layer)
+            generate_texts(model_con, model_dem, gpt_tokenizer, out_file)
         else:
             res_dict = calculate_metrics(res_dict, model_dem, gpt_tokenizer, train_data, test_data)
         del model_dem
@@ -158,7 +159,7 @@ def accumu_train_process(data_type, zero_style, share, text_generate=False):
     pickle_file = "../results/accumu_{}_{}_{}.pkl".format(zero_style, share, data_type)
     with open(pickle_file, "wb") as f:
         pickle.dump(res_dict, f)
-    del gpt_tokenizer, res_dict
+    del gpt_tokenizer, res_dict, model_con
     gc.collect()
 
 
@@ -191,7 +192,7 @@ def combo_train_process(data_type, zero_style, share, text_generate=False):
         # sys.stdout.write("combo zeroing {} {}% attn heads on layer {}\n".format(zero_style, share, layer))
         model_dem = break_attn_heads_by_layer(zero_style, model_dem, share, layer)
     if text_generate:
-        out_file = "../results/comb_{}_{}_{}.tsv".format(zero_style, share, data_type)
+        out_file = "../results/text/comb_{}_{}_{}.tsv".format(zero_style, share, data_type)
         generate_texts(model_con, model_dem, gpt_tokenizer, out_file)
     else:
         res_dict = calculate_metrics(res_dict, model_dem, gpt_tokenizer, train_data, test_data)

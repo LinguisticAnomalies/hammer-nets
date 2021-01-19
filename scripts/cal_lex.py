@@ -30,42 +30,17 @@ def parse_args():
     return parser.parse_args()
 
 
-def add_more_stopwords(stop_words, tokens):
+def pre_process(res_file):
     """
-    add more stopwrods a list of generated text
-    return the new stop word list
+    add more stopwords a list of generated text,
+    remove stopwords from the generate text
+    return the cleaned tokens
 
-    :param stop_words: a list of stop words
-    :type stop_words: list
-    :param tokens: a list of tokens from generated text
-    :type sents: list
-    :return: the updated stop word list
-    :rtype: list
+    :param res_file: the path to text generation dataset
+    :type res_file: str
+    :return: control model tokens and dementia model tokens
+    :rtype: list, list
     """
-    tagged = pos_tag(tokens)
-    for item in tagged:
-        tag = item[1]
-        token = item[0]
-        if tag in ("PRP", "PRP$", "WP$", "EX"):
-            stop_words.append(token)
-    return stop_words
-
-
-def calculate_lexcial_frequency(hammer_style, zero_style,
-                                share, data_type):
-    """
-    calculate the lexical frequency for generated text
-
-    :param hammer_style: impaired style
-    :type hammer_style: str
-    :param zero_style: zeroing attn head style
-    :type zero_style: str
-    :param share: % of attn head impaired
-    :type share: int
-    :param data_type: address mmse dataset type
-    :type data_type: str
-    """
-    res_file = "../results/{}_{}_{}_{}.tsv".format(hammer_style, zero_style, share, data_type)
     res_df = pd.read_csv(res_file, sep="\t")
     con_text = res_df["control"].values.tolist()
     dem_text = res_df["dementia"].values.tolist()
@@ -83,26 +58,44 @@ def calculate_lexcial_frequency(hammer_style, zero_style,
     dem_tokens = [token for token in dem_tokens if token not in string.punctuation]
     bird_tokens = [token for token in bird_tokens if token not in string.punctuation]
     # add more stop words
-    stop_words = add_more_stopwords(stop_words, con_tokens)
-    stop_words = add_more_stopwords(stop_words, dem_tokens)
-    stop_words = add_more_stopwords(stop_words, bird_tokens)
     stop_words.append("n't")
     # add words starting with '
     con_temp = [token for token in con_tokens if token.startswith("'")]
     stop_words.extend(con_temp)
     dem_temp = [token for token in dem_tokens if token.startswith("'")]
     stop_words.extend(dem_temp)
-    # calculate lexical frequency
-    word_dist = load_word_dist()
-    # remove stopwords
+    tagged = pos_tag(con_tokens)
+    for item in tagged:
+        tag = item[1]
+        token = item[0]
+        if tag in ("PRP", "PRP$", "WP$", "EX"):
+            stop_words.append(token)
+    tagged = pos_tag(dem_tokens)
+    for item in tagged:
+        tag = item[1]
+        token = item[0]
+        if tag in ("PRP", "PRP$", "WP$", "EX"):
+            stop_words.append(token)
     con_tokens = [token for token in con_tokens if token not in stop_words]
     dem_tokens = [token for token in dem_tokens if token not in stop_words]
-    # calculate lexical frequency
+    return con_tokens, dem_tokens
+
+
+def calculate_lexical_frequency(con_tokens, dem_tokens):
+    """
+    calculate the lexical frequency for control & dementia model output,
+    run t-test on two list
+
+    :param con_tokens: a list of pre-processed control model output tokens
+    :type con_tokens: list
+    :param dem_tokens: a list of pre-processed dementia model output tokens
+    :type dem_tokens: list
+    """
+    word_dist = load_word_dist()
     con_lf = [get_word_lf(token, word_dist) for token in con_tokens]
     con_lf = [token for token in con_lf if token != -np.inf]
     dem_lf = [get_word_lf(token, word_dist) for token in dem_tokens]
     dem_lf = [token for token in dem_lf if token != -np.inf]
-    print("="*20)
     print("control model log lexical frequency: {}".format(sum(con_lf)/len(con_lf)))
     print("dementia model log lexical frequency: {}".format(sum(dem_lf)/len(dem_lf)))
     print("control model unique word ratio: {}".format(len(set(con_tokens))/len(con_tokens)))
@@ -112,11 +105,45 @@ def calculate_lexcial_frequency(hammer_style, zero_style,
     dem_common = [token for token, token_count in Counter(dem_tokens).most_common(10)]
     print("top 10 most common tokens in control text: {}".format(con_common))
     print("top 10 most common tokens in dementia text: {}".format(dem_common))
-    print("="*20)
 
+
+def cal_driver(hammer_style, zero_style, share, data_type):
+    """
+    calculate the lexical frequency for generated text,
+    the driver function
+
+    :param hammer_style: impaired style
+    :type hammer_style: str
+    :param zero_style: zeroing attn head style
+    :type zero_style: str
+    :param share: % of attn head impaired
+    :type share: int
+    :param data_type: address mmse dataset type
+    :type data_type: str
+    """
+    if hammer_style == "comb":
+        res_file = "../results/text/{}_{}_{}_{}.tsv".format(hammer_style, zero_style, share, data_type)
+        con_tokens, dem_tokens = pre_process(res_file)
+        print("=== {} model {} {}% log lexical frequency =====".format(hammer_style, zero_style, share))
+        calculate_lexical_frequency(con_tokens, dem_tokens)
+    elif hammer_style == "accumu":
+        for layer in range(1, 13):
+            print("=== {} model {} {}% log first {} layer lexical frequency =====".format(hammer_style, zero_style, share, layer))
+            res_file = "../results/text/{}_{}_{}_{}_layer_{}.tsv".format(hammer_style, zero_style, share, data_type, layer)
+            con_tokens, dem_tokens = pre_process(res_file)
+            calculate_lexical_frequency(con_tokens, dem_tokens)
+            print("=====================================")
+    elif hammer_style == "onetime":
+        for layer in range(0, 12):
+            print("=== {} model {} {}% log {}-th layer lexical frequency =====".format(hammer_style, zero_style, share, layer))
+            res_file = "../results/text/{}_{}_{}_{}_layer_{}.tsv".format(hammer_style, zero_style, share, data_type, layer)
+            con_tokens, dem_tokens = pre_process(res_file)
+            calculate_lexical_frequency(con_tokens, dem_tokens)
+            print("=====================================")
+    
 
 if __name__ == "__main__":
     start_time = datetime.now()
     args = parse_args()
-    calculate_lexcial_frequency(args.hammer_style, args.zero_style, args.share, args.data_type)
+    cal_driver(args.hammer_style, args.zero_style, args.share, args.data_type)
     print("Total time running :{}\n".format(datetime.now() - start_time))

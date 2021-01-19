@@ -5,7 +5,7 @@ format_time() {
   ((s=${1}%60))
   printf "%02d:%02d:%02d\n" $h $m $s
  }
- for hammer_style in "combo" "onetime" "accumu"
+ for hammer_style in "comb" "onetime" "accumu"
  do
     for zero_style in "random" "first"
     do

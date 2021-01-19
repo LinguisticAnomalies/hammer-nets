@@ -688,4 +688,4 @@ def generate_texts(model_con, model_dem, tokenizer, out_file):
                 out_dict = {"sentence": sent, "control": con_beam, "dementia": dem_beam}
                 out_df = out_df.append(out_dict, ignore_index=True)
                 break
-    out_df.to_csv(out_file, index=False, sep="\t")
+    out_df.to_csv(out_file, index=False, sep="\t", mode="a")
