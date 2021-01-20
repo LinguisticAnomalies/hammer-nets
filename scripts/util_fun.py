@@ -4,7 +4,6 @@ Utility functions
 
 import os
 import gc
-import random
 import re
 import glob
 import warnings
@@ -615,11 +614,12 @@ def break_attn_heads_by_layer(zero_type, model, share, layer):
                     1536+576, 1536+640, 1536+704]
     batch = 64
     if zero_type == 'random':
-        random.seed(42)
+        np.random.seed(42)
         torch.manual_seed(42)
         # Serguei's approach to reduce running time
         for head in head_offsets:
-            rnd_index = np.random.randint(head, head+63, int(64*(share/100)))
+            # update to unique random integers
+            rnd_index = np.random.choice(range(head, head+64), int(batch*(share/100)), replace=False)
             for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
                 model.transformer.h[layer].attn.c_attn.weight[row][rnd_index] = \
                     model.transformer.h[layer].attn.c_attn.weight[row][rnd_index].mul(0.0)

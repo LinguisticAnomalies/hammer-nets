@@ -210,7 +210,7 @@ if __name__ == "__main__":
         onetime_train_process(args.data_type, args.zero_style, args.share, args.text)
     elif args.hammer_style == "accumu":
         accumu_train_process(args.data_type, args.zero_style, args.share, args.text)
-    elif args.hammer_style == "combo":
+    elif args.hammer_style == "comb":
         combo_train_process(args.data_type, args.zero_style, args.share, args.text)
     else:
         raise ValueError("method not supported")

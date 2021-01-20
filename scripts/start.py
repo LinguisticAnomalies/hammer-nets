@@ -28,6 +28,10 @@ if not os.path.isdir("../results/"):
     os.mkdir("../results/")
 if not os.path.isdir("../results/cache-original/"):
     os.mkdir("../results/cache-original/")
+if not os.path.exist("../results/evals/"):
+    os.mkdir("../results/evals/")
+if not os.path.exists("../results/text/"):
+    os.mkdir("../results/text/")
 # address dataset
 if not os.path.exists("data/address_train_full.tsv") and \
     not os.path.exists("data/address_test_full.tsv") and \

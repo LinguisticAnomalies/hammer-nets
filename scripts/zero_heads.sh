@@ -13,7 +13,7 @@ format_time() {
         do
             for share in 25 50 75 100
             do
-                echo "running script on "$data_type "dataset"
+                echo "running script on "$data_type "dataset with" $zero_style "and" $hammer_style 
                 python -W ignore zero_attn_heads_style.py --hammer_style $hammer_style --zero_style $zero_style --data_type $data_type --share $share --text no
                 echo ""
             done
