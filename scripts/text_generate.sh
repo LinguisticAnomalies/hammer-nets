@@ -6,11 +6,11 @@ format_time() {
  }
  for share in 25 50 75 100
  do
-    for data_type in "full" "mild" "slight"
+    for hammer_style in "comb" "accumu" "onetime"
     do
         for zero_style in "first" "random"
         do
-            python -W ignore zero_attn_heads_style.py --hammer_style combo --zero_style first --data_type $data_type --share $share --text yes
+            python -W ignore zero_attn_heads_style.py --hammer_style $hammer_style --zero_style $zero_style --data_type full --share $share --text yes
         done
     done
 done

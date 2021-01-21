@@ -655,6 +655,9 @@ def generate_texts(model_con, model_dem, tokenizer, out_file):
     :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
     :param out_file: the name of 
     """
+    torch.manual_seed(42)
+    # in case of duplicate outputs
+    check_file(out_file)
     out_df = pd.DataFrame(columns=["sentence", "control", "dementia"])
     bird_df = pd.read_csv("data/bird_frame.tsv", sep="\t")
     bird_all = bird_df[bird_df["file"] == "mct_all.txt"]["text"].values.tolist()[0]
