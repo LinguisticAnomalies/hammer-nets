@@ -32,6 +32,8 @@ if not os.path.exist("../results/evals/"):
     os.mkdir("../results/evals/")
 if not os.path.exists("../results/text/"):
     os.mkdir("../results/text/")
+if not os.path.exists("../results/ppl/"):
+    os.mkdir("../results/ppl/")
 # address dataset
 if not os.path.exists("data/address_train_full.tsv") and \
     not os.path.exists("data/address_test_full.tsv") and \

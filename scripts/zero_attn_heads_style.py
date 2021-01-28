@@ -86,7 +86,10 @@ def onetime_train_process(data_type, zero_style, share, text_generate=False):
             out_file = "../results/text/onetime_{}_{}_{}_layer_{}.tsv".format(zero_style, share, data_type, i)
             generate_texts(model_con, model_dem, gpt_tokenizer, out_file)
         else:
-            res_dict = calculate_metrics(res_dict, model_dem, gpt_tokenizer, train_data, test_data)
+            out_train_file = "../results/ppl/train_onetime_{}_{}_{}_layer_{}.tsv".format(zero_style, share, data_type, i)
+            out_test_file = "../results/ppl/test_onetime_{}_{}_{}_layer_{}.tsv".format(zero_style, share, data_type, i)
+            res_dict = calculate_metrics(res_dict, model_dem, gpt_tokenizer,
+                                         train_data, test_data, out_train_file, out_test_file)
         del model_dem, model_con
         gc.collect()
     # save evaluation metrics to local pickle file
@@ -152,7 +155,10 @@ def accumu_train_process(data_type, zero_style, share, text_generate=False):
             out_file = "../results/text/accumu_{}_{}_{}_layer_{}.tsv".format(zero_style, share, data_type, accu_layer)
             generate_texts(model_con, model_dem, gpt_tokenizer, out_file)
         else:
-            res_dict = calculate_metrics(res_dict, model_dem, gpt_tokenizer, train_data, test_data)
+            out_train_file = "../results/ppl/train_accumu_{}_{}_{}_layer_{}.tsv".format(zero_style, share, data_type, accu_layer)
+            out_test_file = "../results/ppl/test_accumu_{}_{}_{}_layer_{}.tsv".format(zero_style, share, data_type, accu_layer)
+            res_dict = calculate_metrics(res_dict, model_dem, gpt_tokenizer,
+                                         train_data, test_data, out_train_file, out_test_file)
         del model_dem
         gc.collect()
         # save evaluation metrics to local pickle file
@@ -195,7 +201,10 @@ def combo_train_process(data_type, zero_style, share, text_generate=False):
         out_file = "../results/text/comb_{}_{}_{}.tsv".format(zero_style, share, data_type)
         generate_texts(model_con, model_dem, gpt_tokenizer, out_file)
     else:
-        res_dict = calculate_metrics(res_dict, model_dem, gpt_tokenizer, train_data, test_data)
+        out_train_file = "../results/ppl/train_comb_{}_{}_{}.tsv".format(zero_style, share, data_type)
+        out_test_file = "../results/ppl/test_comb_{}_{}_{}.tsv".format(zero_style, share, data_type)
+        res_dict = calculate_metrics(res_dict, model_dem, gpt_tokenizer,
+                                        train_data, test_data, out_train_file, out_test_file)
     pickle_file = "../results/evals/comb_{}_{}_{}.pkl".format(zero_style, share, data_type)
     with open(pickle_file, "wb") as f:
         pickle.dump(res_dict, f)

@@ -529,9 +529,11 @@ def calculate_aucs(eva_method, full_res):
     return aucs
 
 
-def calculate_metrics(res_dict, model_dem, tokenizer, train_set_name, test_set_name):
+def calculate_metrics(res_dict, model_dem, tokenizer,
+                      train_set_name, test_set_name, out_train_file, out_test_file):
     """
-    evaluate the dementia model and calculate AUC and accuracy on given training and test dataset
+    evaluate the dementia model and calculate AUC and accuracy on given training and test dataset,
+    save the preplexity output to local file
 
     :param res_dict: a dictionary to store all metrics
     :type res_dict: dict
@@ -543,9 +545,13 @@ def calculate_metrics(res_dict, model_dem, tokenizer, train_set_name, test_set_n
     :type train_set_name: str
     :param test_set_name: the name for test set, extention not included
     :type test_set_name: str
-    :param res_dict: the dictionary with metrics under current dementia model
-    :type res_dict: dict
+    :param out_train_file: the path to save the perpelxity scores for training set
+    :type out_file: str
+    :param out_test_file: the path to save the perpelxity scores for test set
+    :type out_file: str
     """
+    check_file(out_train_file)
+    check_file(out_test_file)
     # load transcript data
     train_file = "data/{}.tsv".format(train_set_name)
     test_file = "data/{}.tsv".format(test_set_name)
@@ -563,9 +569,11 @@ def calculate_metrics(res_dict, model_dem, tokenizer, train_set_name, test_set_n
     full_train_res = train_con_res.merge(train_res, on="file")
     full_train_res.columns = ["file", "label", "con_perp", "discard", "dem_perp"]
     full_train_res = full_train_res.drop(["discard"], axis=1)
+    full_train_res.to_csv(out_train_file, index=False, sep="\t")
     full_test_res = test_con_res.merge(test_res, on="file")
     full_test_res.columns = ["file", "label", "con_perp", "discard", "dem_perp"]
     full_test_res = full_test_res.drop(["discard"], axis=1)
+    full_test_res.to_csv(out_test_file, index=False, sep="\t")
     # control model metrics on training set
     train_labels = full_train_res["label"].values.tolist()
     con_perp = full_train_res["con_perp"].values.tolist()

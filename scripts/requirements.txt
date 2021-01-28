@@ -1,0 +1,11 @@
+torch
+numpy
+scipy
+sklearn
+jupyter
+pylint
+nltk
+transformers
+pandas
+scikit-learn
+ecco
