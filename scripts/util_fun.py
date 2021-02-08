@@ -650,7 +650,6 @@ def break_attn_heads_by_layer(zero_type, model, share, layer):
             raise ValueError("zeroing type is not supported!")
 
 
-# TODO: needs to rewrite
 def generate_texts(model_con, model_dem, tokenizer, out_file):
     """
     generate additional 20 tokens for each sentence of healthy bird transcript,
