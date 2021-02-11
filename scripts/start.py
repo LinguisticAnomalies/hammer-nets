@@ -28,11 +28,11 @@ if not os.path.isdir("../results/"):
     os.mkdir("../results/")
 if not os.path.isdir("../results/cache-original/"):
     os.mkdir("../results/cache-original/")
-if not os.path.exist("../results/evals/"):
+if not os.path.isdir("../results/evals/"):
     os.mkdir("../results/evals/")
-if not os.path.exists("../results/text/"):
+if not os.path.isdir("../results/text/"):
     os.mkdir("../results/text/")
-if not os.path.exists("../results/ppl/"):
+if not os.path.isdir("../results/ppl/"):
     os.mkdir("../results/ppl/")
 # address dataset
 if not os.path.exists("data/address_train_full.tsv") and \
@@ -64,8 +64,15 @@ train_slight_frame = train_frame[train_frame["mmse"] > 24]
 print("train slight dataset shape {}".format(train_slight_frame.shape))
 test_slight_frame = test_frame[test_frame["mmse"] > 24]
 print("test slight dataset shape {}".format(test_slight_frame.shape))
-train_mild_frame.to_csv("data/address_train_slight.tsv", index=False, sep="\t")
-test_mild_frame.to_csv("data/address_test_slight.tsv", index=False, sep="\t")
+train_slight_frame.to_csv("data/address_train_slight.tsv", index=False, sep="\t")
+test_slight_frame.to_csv("data/address_test_slight.tsv", index=False, sep="\t")
+# subset transcripts with <=21 mmse
+train_sev_frame = train_frame[train_frame["mmse"] <= 21]
+print("train severe dataset shape {}".format(train_sev_frame.shape))
+test_sev_frame = test_frame[test_frame["mmse"] <= 21]
+print("test ssevere dataset shape {}".format(test_sev_frame.shape))
+train_sev_frame.to_csv("data/address_train_sev.tsv", index=False, sep="\t")
+test_sev_frame.to_csv("data/address_test_sev.tsv", index=False, sep="\t")
 # WLS dataset
 process_wls_data()
 # evaluation on the original GPT-2 model
@@ -83,4 +90,8 @@ df = evaluate_model(train_slight_frame, con_model, gpt_tokenizer)
 df.to_csv("../results/cache-original/address_train_slight.tsv", index=False, sep="\t")
 df = evaluate_model(test_slight_frame, con_model, gpt_tokenizer)
 df.to_csv("../results/cache-original/address_test_slight.tsv", index=False, sep="\t")
+f = evaluate_model(train_sev_frame, con_model, gpt_tokenizer)
+df.to_csv("../results/cache-original/address_train_sev.tsv", index=False, sep="\t")
+df = evaluate_model(test_sev_frame, con_model, gpt_tokenizer)
+df.to_csv("../results/cache-original/address_test_sev.tsv", index=False, sep="\t")
 
