@@ -12,7 +12,8 @@ format_time() {
         do
             for zero_style in "first" "random"
             do
-                python -W ignore zero_attn_heads_style.py --hammer_style $hammer_style --zero_style $zero_style --data_type data_type --share $share --text no
+                echo $share $data_type $hammer_style $zero_style
+                python -W ignore zero_attn_heads_style.py --hammer_style $hammer_style --zero_style $zero_style --data_type $data_type --share $share --text yes
             done
         done
     done
