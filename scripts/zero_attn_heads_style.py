@@ -8,7 +8,6 @@ from datetime import datetime
 import gc
 import os
 import argparse
-import pandas as pd
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from util_fun import calculate_metrics, break_attn_heads_by_layer, str2bool, generate_texts
 # use GPU 2
@@ -52,6 +51,9 @@ def get_data_name(data_type):
     elif data_type == "sev":
         train_data = "address_train_sev"
         test_data = "address_test_sev"
+    elif data_type == "ccc":
+        train_data = "ccc_train"
+        test_data = "ccc_test"
     else:
         raise ValueError("dataset type not supported!")
     return train_data, test_data
@@ -164,7 +166,7 @@ def accumu_train_process(data_type, zero_style, share, text_generate=False):
             out_train_file = "../results/ppl/train_accumu_{}_{}_{}_layer_{}.tsv".format(zero_style, share, data_type, accu_layer)
             out_test_file = "../results/ppl/test_accumu_{}_{}_{}_layer_{}.tsv".format(zero_style, share, data_type, accu_layer)
             res_dict = calculate_metrics(res_dict, model_dem, gpt_tokenizer,
-                                            train_data, test_data, out_train_file, out_test_file)
+                                         train_data, test_data, out_train_file, out_test_file)
             del model_dem
             gc.collect()
         except ValueError:

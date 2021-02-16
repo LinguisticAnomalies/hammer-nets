@@ -2,7 +2,9 @@
 the script for dataset ground truth stats
 '''
 
+import pickle
 import pandas as pd
+import numpy as np
 
 
 def get_address_desp(data_type):
@@ -36,4 +38,12 @@ def get_address_desp(data_type):
 
 
 if __name__ == "__main__":
-    get_address_desp("full")
+    # get_address_desp("mild")
+    with open("/edata/dementia_cleaned.pkl", "rb") as f:
+        df = pickle.load(f)
+    df["label"] = np.where(df["dementia"] == True, 1, 0)
+    trans = df["Transcript"].values.tolist()
+    for i in range(5):
+        print(trans[i])
+        print()
+    print(df.columns)

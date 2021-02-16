@@ -11,6 +11,7 @@ import pickle
 import math
 import sys
 import argparse
+from sklearn.model_selection import train_test_split
 import pandas as pd
 import numpy as np
 import torch
@@ -356,6 +357,25 @@ def read_data(prefix_path, data_type):
                                                 "mmse": mmse},
                                                 ignore_index=True)
     return trans_df
+
+
+def read_ccc_data():
+    """
+    pre-process CCC dataset,
+    return cleaned train & test set
+    """
+    with open("/edata/dementia_cleaned.pkl", "rb") as f:
+        df = pickle.load(f)
+    df["label"] = np.where(df["dementia"] == True, 1, 0)
+    df.columns = ["name", "test", "short_name", "dementia", "label"]
+    df = df[["file", "text", "label"]]
+    # basic pre-processing
+    df["text"].replace({r'\([^)]*\)': ''}, inplace=True, regex=True)
+    df["text"].replace({r'[\W_]': ''}, inplace=True, regex=True)
+    df["text"] = df["text"].str.lower()
+    # split into train/test set
+    ccc_train, ccc_test = train_test_split(df, test_size=0.3, random_state=42)
+    return ccc_train, ccc_test
 
 
 def model_driver(input_text, model, tokenizer):
