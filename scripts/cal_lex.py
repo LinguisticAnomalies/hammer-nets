@@ -96,11 +96,12 @@ def calculate_lexical_frequency(con_tokens, dem_tokens):
     con_lf = [token for token in con_lf if token != -np.inf]
     dem_lf = [get_word_lf(token, word_dist) for token in dem_tokens]
     dem_lf = [token for token in dem_lf if token != -np.inf]
-    print("control model log lexical frequency: {}".format(sum(con_lf)/len(con_lf)))
-    print("dementia model log lexical frequency: {}".format(sum(dem_lf)/len(dem_lf)))
-    print("control model unique word ratio: {}".format(len(set(con_tokens))/len(con_tokens)))
-    print("dementia model unique word ratio: {}".format(len(set(dem_tokens))/len(dem_tokens)))
-    print("t-test p-value: {}".format(ttest_ind(con_lf, dem_lf)[1]))
+    print("control model log lexical frequency: {}".format(round(sum(con_lf)/len(con_lf), 2)))
+    print("dementia model log lexical frequency: {}".format(round(sum(dem_lf)/len(dem_lf), 2)))
+    print("control model unique word ratio: {:0.2f}".format(len(set(con_tokens))/len(con_tokens)))
+    print("dementia model unique word ratio: {:0.2f}".format(len(set(dem_tokens))/len(dem_tokens)))
+    # if p<0.05 -> significant difference between two samples
+    print("t-test p-value: {:0.3f}".format(ttest_ind(con_lf, dem_lf)[1]))
     con_common = [token for token, token_count in Counter(con_tokens).most_common(10)]
     dem_common = [token for token, token_count in Counter(dem_tokens).most_common(10)]
     print("top 10 most common tokens in control text: {}".format(con_common))
