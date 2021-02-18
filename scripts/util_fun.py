@@ -367,11 +367,13 @@ def read_ccc_data():
     with open("/edata/dementia_cleaned.pkl", "rb") as f:
         df = pickle.load(f)
     df["label"] = np.where(df["dementia"] == True, 1, 0)
-    df.columns = ["name", "test", "short_name", "dementia", "label"]
+    df.columns = ["file", "text", "short_name", "dementia", "label"]
     df = df[["file", "text", "label"]]
     # basic pre-processing
     df["text"].replace({r'\([^)]*\)': ''}, inplace=True, regex=True)
-    df["text"].replace({r'[\W_]': ''}, inplace=True, regex=True)
+    df["text"].replace({r'[_]': ''}, inplace=True, regex=True)
+    # TODO: this one does not work
+    df["text"].replace({'^^': ''}, inplace=True)
     df["text"] = df["text"].str.lower()
     # split into train/test set
     ccc_train, ccc_test = train_test_split(df, test_size=0.3, random_state=42)
