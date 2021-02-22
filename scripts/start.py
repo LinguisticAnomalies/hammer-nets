@@ -83,21 +83,20 @@ if not os.path.exists("data/address_train_sev.tsv") and \
     test_sev_frame.to_csv("data/address_test_sev.tsv", index=False, sep="\t")
 # WLS dataset
 process_wls_data()
+con_model = GPT2LMHeadModel.from_pretrained("gpt2")
+gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
 # CCC dataset
 if not os.path.exists("data/ccc_train.tsv") and \
     not os.path.exists("data/ccc_test.tsv"):
     ccc_train, ccc_test = read_ccc_data()
     ccc_train.to_csv("data/ccc_train.tsv", index=False, sep="\t")
     ccc_test.to_csv("data/ccc_test.tsv", index=False, sep="\t")
-# evaluation on the original GPT-2 model
-con_model = GPT2LMHeadModel.from_pretrained("gpt2")
-gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
-if not os.path.exists("../results/cache-original/ccc_train.tsv"):
-    df = evaluate_model(ccc_train, con_model, gpt_tokenizer)
-    df.to_csv("../results/cache-original/ccc_train.tsv", index=False, sep="\t")
-if not os.path.exists("../results/cache-original/ccc_test.tsv"):
-    df = evaluate_model(ccc_test, con_model, gpt_tokenizer)
-    df.to_csv("../results/cache-original/ccc_test.tsv", index=False, sep="\t")
+ccc_train = pd.read_csv("data/ccc_train.tsv", sep="\t")
+ccc_test = pd.read_csv("data/ccc_test.tsv", sep="\t")
+df = evaluate_model(ccc_train, con_model, gpt_tokenizer)
+df.to_csv("../results/cache-original/ccc_train.tsv", index=False, sep="\t")
+df = evaluate_model(ccc_test, con_model, gpt_tokenizer)
+df.to_csv("../results/cache-original/ccc_test.tsv", index=False, sep="\t")
 if not os.path.exists("../results/cache-original/address_train_full.tsv"):
     df = evaluate_model(train_frame, con_model, gpt_tokenizer)
     df.to_csv("../results/cache-original/address_train_full.tsv", index=False, sep="\t")

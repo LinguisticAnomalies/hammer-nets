@@ -373,11 +373,12 @@ def read_ccc_data():
     df["text"].replace({r'\([^)]*\)': ''}, inplace=True, regex=True)
     df["text"].replace({r'[_]': ''}, inplace=True, regex=True)
     # TODO: this one does not work
-    df["text"].replace({'^^': ''}, inplace=True)
+    df["text"].replace({r'\^+': ''}, inplace=True)
     df["text"] = df["text"].str.lower()
     # split into train/test set
     ccc_train, ccc_test = train_test_split(df, test_size=0.3, random_state=42)
     return ccc_train, ccc_test
+
 
 
 def model_driver(input_text, model, tokenizer):

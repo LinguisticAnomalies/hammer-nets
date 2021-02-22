@@ -74,7 +74,7 @@ def load_res_dict(file_path):
     return res_dict
 
 
-def compare_hammer_eval_metrics(share, zero_style, data_type):
+def compare_hammer_eval_metrics(share, zero_style, data_type, model_type):
     """
     compare an evaluation metrics with given share and zero on different hammer sytles
     for this function, comparing 'onetime', 'accumu' and 'comb'
@@ -85,6 +85,8 @@ def compare_hammer_eval_metrics(share, zero_style, data_type):
     :type zero_style: str
     :param data_type: data subset style
     :type data_type: str
+    :param model_type: either c/d or c-d models
+    :type: str
     """
     # comb
     comb_file = "../results/evals/comb_{}_{}_{}.pkl".format(zero_style, share, data_type)
@@ -96,49 +98,26 @@ def compare_hammer_eval_metrics(share, zero_style, data_type):
     accumu_file = "../results/evals/accumu_{}_{}_{}.pkl".format(zero_style, share, data_type)
     accumu_dict = load_res_dict(accumu_file)
     print("="*20)
-    print("training c-d auc")
-    print("comb: {}".format(comb_dict["train_diff_auc"][0]))
-    print("accumu: {}".format(round(np.mean(accumu_dict["train_diff_auc"]), 2)))
-    print("ontime: {}".format(round(np.mean(onetime_dict["train_diff_auc"]), 2)))
+    train_auc = "train_{}_auc".format(model_type)
+    train_accu = "train_{}_accu".format(model_type)
+    test_auc = "test_{}_auc".format(model_type)
+    test_accu = "test_{}_accu".format(model_type)
+    print("{}% {} training {} auc & accuracy".format(share, data_type, model_type))
+    print("comb   : {:0.2f}\t{:0.2f}".format(comb_dict[train_auc][0],
+                                             comb_dict[train_accu][0]))
+    print("accumu : {:0.2f}\t{:0.2f}".format(np.mean(accumu_dict[train_auc]),
+                                             np.mean(accumu_dict[train_accu])))
+    print("onetime: {:0.2f}\t{:0.2f}".format(np.mean(onetime_dict[train_auc]),
+                                             np.mean(onetime_dict[train_accu])))
     print("="*20)
-    print("test c-d auc")
-    print("comb: {}".format(comb_dict["test_diff_auc"][0]))
-    print("accumu: {}".format(round(np.mean(accumu_dict["test_diff_auc"]), 2)))
-    print("ontime: {}".format(round(np.mean(onetime_dict["test_diff_auc"]), 2)))
-    print("="*20)
-    print("training c/d auc")
-    print("comb: {}".format(comb_dict["train_ratio_auc"][0]))
-    print("accumu: {}".format(round(np.mean(accumu_dict["train_ratio_auc"]), 2)))
-    print("ontime: {}".format(round(np.mean(onetime_dict["train_ratio_auc"]), 2)))
-    print("="*20)
-    print("test c/d auc")
-    print("comb: {}".format(comb_dict["test_ratio_auc"][0]))
-    print("accumu: {}".format(round(np.mean(accumu_dict["test_ratio_auc"]), 2)))
-    print("ontime: {}".format(round(np.mean(onetime_dict["test_ratio_auc"]), 2)))
-    print("="*20)
-    print("="*20)
-    print("training c-d accuracy")
-    print("comb: {}".format(comb_dict["train_diff_accu"][0]))
-    print("accumu: {}".format(round(np.mean(accumu_dict["train_diff_accu"]), 2)))
-    print("ontime: {}".format(round(np.mean(onetime_dict["train_diff_accu"]), 2)))
-    print("="*20)
-    print("test c-d accuracy")
-    print("comb: {}".format(comb_dict["test_diff_accu"][0]))
-    print("accumu: {}".format(round(np.mean(accumu_dict["test_diff_accu"]), 2)))
-    print("ontime: {}".format(round(np.mean(onetime_dict["test_diff_accu"]), 2)))
-    print("="*20)
-    print("training c/d accuracy")
-    print("comb: {}".format(comb_dict["train_ratio_accu"][0]))
-    print("accumu: {}".format(round(np.mean(accumu_dict["train_ratio_accu"]), 2)))
-    print("ontime: {}".format(round(np.mean(onetime_dict["train_ratio_accu"]), 2)))
-    print("="*20)
-    print("test c/d accuracy")
-    print("comb: {}".format(comb_dict["test_ratio_accu"][0]))
-    print("accumu: {}".format(round(np.mean(accumu_dict["test_ratio_accu"]), 2)))
-    print("ontime: {}".format(round(np.mean(onetime_dict["test_ratio_accu"]), 2)))
-    print("="*20)
-    
+    print("{}\% {} test {} auc & accuracy".format(share, data_type, model_type))
+    print("comb   : {:0.2f}\t{:0.2f}".format(comb_dict[test_auc][0],
+                                             comb_dict[test_accu][0]))
+    print("accumu : {:0.2f}\t{:0.2f}".format(np.mean(accumu_dict[test_auc]),
+                                             np.mean(accumu_dict[test_accu])))
+    print("onetime: {:0.2f}\t{:0.2f}".format(np.mean(onetime_dict[test_auc]),
+                                             np.mean(onetime_dict[test_accu])))
 
 
 if __name__ == "__main__":
-    compare_hammer_eval_metrics(25, "first", "full")
+    compare_hammer_eval_metrics(100, "random", "full", "ratio")
