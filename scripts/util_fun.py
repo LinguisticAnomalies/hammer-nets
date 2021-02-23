@@ -11,6 +11,7 @@ import pickle
 import math
 import sys
 import argparse
+from numpy.core.fromnumeric import _transpose_dispatcher
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import numpy as np
@@ -359,26 +360,41 @@ def read_data(prefix_path, data_type):
     return trans_df
 
 
+def clean_ccc_text(text):
+    """
+    basic pre-processing for CCC transcripts
+
+    :param text: the CCC transcript for pre-processing
+    :type text: str
+    """
+    text = re.sub(r'\^+',' ',text)
+    text = re.sub(r'\_+',' ',text)
+    text = re.sub(r'-',' ',text)
+    text = re.sub(r'~','-',text)
+    text = re.sub(r'[^\x00-\x7F]+','\'',text)
+    text = re.sub(r'\<|\>',' ',text)
+    text = re.sub(r'\(Overlap\s*\)|\(Unclear\s*\)|\(Background\s*noise\s*\)|\(Unclear\/overlap\)|\(Chuckles\s*\)|\(Chuckles\/overlap\)',' ',text, flags=re.IGNORECASE)
+    text = re.sub(r'\(clears throat\)|\(long pause\)',' ',text,flags=re.IGNORECASE)
+    return text.strip().lower()
+
+
 def read_ccc_data():
     """
     pre-process CCC dataset,
     return cleaned train & test set
     """
-    with open("/edata/dementia_cleaned.pkl", "rb") as f:
+    with open("/edata/dementia_cleaned_withId.pkl", "rb") as f:
         df = pickle.load(f)
     df["label"] = np.where(df["dementia"] == True, 1, 0)
-    df.columns = ["file", "text", "short_name", "dementia", "label"]
-    df = df[["file", "text", "label"]]
-    # basic pre-processing
-    df["text"].replace({r'\([^)]*\)': ''}, inplace=True, regex=True)
-    df["text"].replace({r'[_]': ''}, inplace=True, regex=True)
-    # TODO: this one does not work
-    df["text"].replace({r'\^+': ''}, inplace=True)
-    df["text"] = df["text"].str.lower()
+    # generate temp unique ids for CCC dataset
+    ids = list(range(1, len(df)+1))
+    df["ParticipantID"] = ids
+    df = df[["ParticipantID", "Transcript", "label"]]
+    df.columns = ["file", "text", "label"]
+    df["text"] = df["text"].apply(clean_ccc_text)
     # split into train/test set
     ccc_train, ccc_test = train_test_split(df, test_size=0.3, random_state=42)
     return ccc_train, ccc_test
-
 
 
 def model_driver(input_text, model, tokenizer):
@@ -437,12 +453,14 @@ def evaluate_model(test_frame, model, tokenizer):
     for _, row in test_frame.iterrows():
         with torch.no_grad():
             trans = row["text"]
+            if not isinstance(trans, str):
+                continue
             outputs = model_driver(trans, model, tokenizer)
             # calculate perplexity score
             perp = math.exp(outputs[0].item())
             eval_dict = {"file": row["file"],
-                        "label": row["label"],
-                        "perplexity": perp}
+                         "label": row["label"],
+                         "perplexity": perp}
             del outputs, trans
             gc.collect()
             res_df = res_df.append(eval_dict, ignore_index=True)

@@ -120,4 +120,7 @@ def compare_hammer_eval_metrics(share, zero_style, data_type, model_type):
 
 
 if __name__ == "__main__":
-    compare_hammer_eval_metrics(100, "random", "full", "ratio")
+    #compare_hammer_eval_metrics(100, "random", "full", "ratio")
+    df = pd.read_csv("data/ccc_test.tsv", sep="\t")
+    print(df["text"].values.tolist()[0])
+    print(type(print(df["text"].values.tolist()[0])))
