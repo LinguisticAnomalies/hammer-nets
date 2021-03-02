@@ -360,43 +360,6 @@ def read_data(prefix_path, data_type):
     return trans_df
 
 
-def clean_ccc_text(text):
-    """
-    basic pre-processing for CCC transcripts
-
-    :param text: the CCC transcript for pre-processing
-    :type text: str
-    """
-    text = re.sub(r'\^+',' ',text)
-    text = re.sub(r'\_+',' ',text)
-    text = re.sub(r'-',' ',text)
-    text = re.sub(r'~','-',text)
-    text = re.sub(r'[^\x00-\x7F]+','\'',text)
-    text = re.sub(r'\<|\>',' ',text)
-    text = re.sub(r'\(Overlap\s*\)|\(Unclear\s*\)|\(Background\s*noise\s*\)|\(Unclear\/overlap\)|\(Chuckles\s*\)|\(Chuckles\/overlap\)',' ',text, flags=re.IGNORECASE)
-    text = re.sub(r'\(clears throat\)|\(long pause\)',' ',text,flags=re.IGNORECASE)
-    return text.strip().lower()
-
-
-def read_ccc_data():
-    """
-    pre-process CCC dataset,
-    return cleaned train & test set
-    """
-    with open("/edata/dementia_cleaned_withId.pkl", "rb") as f:
-        df = pickle.load(f)
-    df["label"] = np.where(df["dementia"] == True, 1, 0)
-    # generate temp unique ids for CCC dataset
-    ids = list(range(1, len(df)+1))
-    df["ParticipantID"] = ids
-    df = df[["ParticipantID", "Transcript", "label"]]
-    df.columns = ["file", "text", "label"]
-    df["text"] = df["text"].apply(clean_ccc_text)
-    # split into train/test set
-    ccc_train, ccc_test = train_test_split(df, test_size=0.3, random_state=42)
-    return ccc_train, ccc_test
-
-
 def model_driver(input_text, model, tokenizer):
     """
     get the output from the model
@@ -601,6 +564,10 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     # evaluate the dementia model
     train_res = evaluate_model(train_df, model_dem, tokenizer)
     test_res = evaluate_model(test_df, model_dem, tokenizer)
+    # merge to mean perplexity for ccc dataset
+    if "ccc" in train_set_name and "ccc" in test_set_name:
+        train_res = train_res.groupby(["file", "label"])["perplexity"].mean().reset_index()
+        test_res = test_res.groupby(["file", "label"])["perplexity"].mean().reset_index()
     # load control model evaluation data
     train_con_file = "../results/cache-original/{}.tsv".format(train_set_name)
     test_con_file = "../results/cache-original/{}.tsv".format(test_set_name)

@@ -21,6 +21,7 @@ This repo contains codes and scripts for simulating Dementia by breaking neural 
 | 75  | 9.44  |  72 | 8.46  | 64  | 0.000  |
 | 100  | 9.46  |  72 | 10.67  | 27  | 0.000  |
 
+
 #### Combination of Layers, Full ADReSS Dataset, Random Zeroing
 
 % attn heads zeroed  | control model log lexical frequency  |  control model unique token ratio % | dementia model log lexical frequency  | dementia model unique token ratio % | t-test p-value  |

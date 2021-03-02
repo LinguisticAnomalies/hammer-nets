@@ -11,7 +11,7 @@ format_time() {
         for zero_style in "first" "random"
         do
             echo $share $data_type $hammer_style $zero_style
-            python -W ignore zero_attn_heads_style.py --hammer_style $hammer_style --zero_style $zero_style --data_type ccc --share $share --text yes
+            python -W ignore zero_attn_heads_style.py --hammer_style $hammer_style --zero_style $zero_style --data_type ccc --share $share --text no
         done
     done
 done
