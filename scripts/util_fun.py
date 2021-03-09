@@ -11,8 +11,6 @@ import pickle
 import math
 import sys
 import argparse
-from numpy.core.fromnumeric import _transpose_dispatcher
-from sklearn.model_selection import train_test_split
 import pandas as pd
 import numpy as np
 import torch
@@ -416,8 +414,6 @@ def evaluate_model(test_frame, model, tokenizer):
     for _, row in test_frame.iterrows():
         with torch.no_grad():
             trans = row["text"]
-            if not isinstance(trans, str):
-                continue
             outputs = model_driver(trans, model, tokenizer)
             # calculate perplexity score
             perp = math.exp(outputs[0].item())
@@ -534,8 +530,45 @@ def calculate_aucs(eva_method, full_res):
 
 
 def calculate_metrics(res_dict, model_dem, tokenizer,
-                      train_set_name, test_set_name, out_train_file, out_test_file):
+                      input_frame, input_con):
     """
+    evaluate the dementia model and calculate AUC and accuracy on given training and test dataset,
+    return the evaluation result, or save to local file
+
+    :param res_dict: a dictionary to store all metrics
+    :type res_dict: dict
+    :param model_dem: the modified model serving as dementia
+    :type model_dem: transformers.modeling_gpt2.GPT2LMHeadModel
+    :param tokenizer: the gpt-2 tokenizer
+    :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
+    :param input_frame: the dataframe to be evaluated
+    :type input_frame: pd.DataFrame
+    :param input_con: the control model evaluation dataframe
+    :type input_con: pd.DataFrame
+    """
+    res_df = evaluate_model(input_frame, model_dem, tokenizer)
+    # calculate mean perplexity for CCC dataset
+    res_df = res_df.groupby(["file", "label"])["perplexity"].mean().reset_index()
+    full_res = input_con.merge(res_df, on="file")
+    full_res.columns = ["file", "label", "con_perp", "discard", "dem_perp"]
+    full_res = full_res.drop(["discard"], axis=1)
+    labels = full_res["label"].values.tolist()
+    con_perp = full_res["con_perp"].values.tolist()
+    # calculate control model auc and accuracy
+    con_accu, con_auc = calculate_accuracy(labels, con_perp)
+    res_dict["con_auc"].append(round(con_auc, 3))
+    res_dict["con_accu"].append(round(con_accu, 3))
+    # calculate AUC and accuracy under diff, ratio and log
+    for eva_method in ("diff", "ratio"):
+        accu, auc = calculate_aucs(eva_method, full_res)
+        res_dict["{}_auc".format(eva_method)].append(round(auc, 3))
+        res_dict["{}_accu".format(eva_method)].append(round(accu, 3))
+    return res_dict
+
+
+""" def calculate_metrics(res_dict, model_dem, tokenizer,
+                      train_set_name, test_set_name, out_train_file, out_test_file):
+    
     evaluate the dementia model and calculate AUC and accuracy on given training and test dataset,
     save the preplexity output to local file
 
@@ -553,7 +586,7 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     :type out_file: str
     :param out_test_file: the path to save the perpelxity scores for test set
     :type out_file: str
-    """
+
     check_file(out_train_file)
     check_file(out_test_file)
     # load transcript data
@@ -603,7 +636,7 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
         res_dict["train_{}_accu".format(eva_method)].append(round(train_accu, 3))
         res_dict["test_{}_auc".format(eva_method)].append(round(test_auc, 3))
         res_dict["test_{}_accu".format(eva_method)].append(round(test_accu, 3))
-    return res_dict
+    return res_dict """
 
 
 def break_attn_heads_by_layer(zero_type, model, share, layer):
