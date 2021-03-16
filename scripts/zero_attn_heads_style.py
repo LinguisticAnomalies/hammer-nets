@@ -51,9 +51,6 @@ def get_data_name(data_type):
     elif data_type == "sev":
         train_data = "address_train_sev"
         test_data = "address_test_sev"
-    elif data_type == "ccc":
-        train_data = "ccc_train"
-        test_data = "ccc_test"
     else:
         raise ValueError("dataset type not supported!")
     return train_data, test_data

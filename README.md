@@ -105,3 +105,4 @@ This repo contains codes and scripts for simulating Dementia by breaking neural 
 | 12  | 9.46  |  72 | 9.3  | 27  | 0.390  |
 
 
+### 5-Fold Cross Validation on CCC

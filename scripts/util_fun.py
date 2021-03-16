@@ -358,6 +358,49 @@ def read_data(prefix_path, data_type):
     return trans_df
 
 
+def clean_ccc_text(text):
+    """
+    basic pre-processing for CCC transcripts
+    :param text: the CCC transcript for pre-processing
+    :type text: str
+    """
+    text = text.lower().strip()
+    # remove () and [] and following punctuation
+    text = re.sub(r"[\(\[].*?[\)\]][?!,.]?", "", text)
+    # remove ^^_____ and following punctuation
+    text = re.sub(r'\^+_+\s?[?.!,]?', "", text)
+    text = re.sub(r'~','-',text)
+    text = re.sub(r'-',' ',text)
+    text = re.sub(r'[^\x00-\x7F]+','\'',text)
+    text = re.sub(r'\<|\>',' ',text)
+    text = re.sub(r"\_", "", text)
+    # remove unwanted whitespaces between words
+    text = re.sub(r'\s+', " ", text)
+    text = text.strip()
+    return text
+
+
+def process_ccc():
+    """
+    read and pre-process ccc dataset:
+        - read the ccc dataset pickle file
+        - clean the transcript
+        - save it to a local file
+    :return: ccc cleaned dataset
+    :rtype: pd.DataFrame
+    """
+    with open("/edata/dementia_cleaned_withId.pkl", "rb") as f:
+        df = pickle.load(f)
+    df["label"] = np.where(df["dementia"], 1, 0)
+    df = df[["ParticipantID", "Transcript", "label"]]
+    # rename columns to keep same track with ADReSS
+    df.columns = ["file", "text", "label"]
+    df["text"] = df["text"].apply(clean_ccc_text)
+    # drop empty rows if any
+    df = df[df["text"].str.len() > 0]
+    return df
+
+
 def model_driver(input_text, model, tokenizer):
     """
     get the output from the model
@@ -556,87 +599,14 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     con_perp = full_res["con_perp"].values.tolist()
     # calculate control model auc and accuracy
     con_accu, con_auc = calculate_accuracy(labels, con_perp)
-    res_dict["con_auc"].append(round(con_auc, 3))
-    res_dict["con_accu"].append(round(con_accu, 3))
+    res_dict["con_auc"].append(round(con_auc, 2))
+    res_dict["con_accu"].append(round(con_accu, 2))
     # calculate AUC and accuracy under diff, ratio and log
     for eva_method in ("diff", "ratio"):
         accu, auc = calculate_aucs(eva_method, full_res)
-        res_dict["{}_auc".format(eva_method)].append(round(auc, 3))
-        res_dict["{}_accu".format(eva_method)].append(round(accu, 3))
+        res_dict["{}_auc".format(eva_method)].append(round(auc, 2))
+        res_dict["{}_accu".format(eva_method)].append(round(accu, 2))
     return res_dict
-
-
-""" def calculate_metrics(res_dict, model_dem, tokenizer,
-                      train_set_name, test_set_name, out_train_file, out_test_file):
-    
-    evaluate the dementia model and calculate AUC and accuracy on given training and test dataset,
-    save the preplexity output to local file
-
-    :param res_dict: a dictionary to store all metrics
-    :type res_dict: dict
-    :param model_dem: the modified model serving as dementia
-    :type model_dem: transformers.modeling_gpt2.GPT2LMHeadModel
-    :param tokenizer: the gpt-2 tokenizer
-    :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
-    :param train_set_name: the name for training set, extention not included
-    :type train_set_name: str
-    :param test_set_name: the name for test set, extention not included
-    :type test_set_name: str
-    :param out_train_file: the path to save the perpelxity scores for training set
-    :type out_file: str
-    :param out_test_file: the path to save the perpelxity scores for test set
-    :type out_file: str
-
-    check_file(out_train_file)
-    check_file(out_test_file)
-    # load transcript data
-    train_file = "data/{}.tsv".format(train_set_name)
-    test_file = "data/{}.tsv".format(test_set_name)
-    train_df = pd.read_csv(train_file, sep="\t")
-    test_df = pd.read_csv(test_file, sep="\t")
-    # evaluate the dementia model
-    train_res = evaluate_model(train_df, model_dem, tokenizer)
-    test_res = evaluate_model(test_df, model_dem, tokenizer)
-    # merge to mean perplexity for ccc dataset
-    if "ccc" in train_set_name and "ccc" in test_set_name:
-        train_res = train_res.groupby(["file", "label"])["perplexity"].mean().reset_index()
-        test_res = test_res.groupby(["file", "label"])["perplexity"].mean().reset_index()
-    # load control model evaluation data
-    train_con_file = "../results/cache-original/{}.tsv".format(train_set_name)
-    test_con_file = "../results/cache-original/{}.tsv".format(test_set_name)
-    train_con_res = pd.read_csv(train_con_file, sep="\t")
-    test_con_res = pd.read_csv(test_con_file, sep="\t")
-    # merge to full evaluation data
-    full_train_res = train_con_res.merge(train_res, on="file")
-    full_train_res.columns = ["file", "label", "con_perp", "discard", "dem_perp"]
-    full_train_res = full_train_res.drop(["discard"], axis=1)
-    full_train_res.to_csv(out_train_file, index=False, sep="\t")
-    full_test_res = test_con_res.merge(test_res, on="file")
-    full_test_res.columns = ["file", "label", "con_perp", "discard", "dem_perp"]
-    full_test_res = full_test_res.drop(["discard"], axis=1)
-    full_test_res.to_csv(out_test_file, index=False, sep="\t")
-    # control model metrics on training set
-    train_labels = full_train_res["label"].values.tolist()
-    con_perp = full_train_res["con_perp"].values.tolist()
-    train_con_accu, train_con_auc = calculate_accuracy(train_labels, con_perp)
-    # control model metrics on test set
-    test_labels = full_test_res["label"].values.tolist()
-    con_perp = full_test_res["con_perp"].values.tolist()
-    test_con_accu, test_con_auc = calculate_accuracy(test_labels, con_perp)
-    # add control model metrics to dict
-    res_dict["train_con_auc"].append(round(train_con_auc, 3))
-    res_dict["train_con_accu"].append(round(train_con_accu, 3))
-    res_dict["test_con_auc"].append(round(test_con_auc, 3))
-    res_dict["test_con_accu"].append(round(test_con_accu, 3))
-    # calculate AUC and accuracy under diff, ratio and log
-    for eva_method in ("diff", "ratio", "log"):
-        train_accu, train_auc = calculate_aucs(eva_method, full_train_res)
-        test_accu, test_auc = calculate_aucs(eva_method, full_test_res)
-        res_dict["train_{}_auc".format(eva_method)].append(round(train_auc, 3))
-        res_dict["train_{}_accu".format(eva_method)].append(round(train_accu, 3))
-        res_dict["test_{}_auc".format(eva_method)].append(round(test_auc, 3))
-        res_dict["test_{}_accu".format(eva_method)].append(round(test_accu, 3))
-    return res_dict """
 
 
 def break_attn_heads_by_layer(zero_type, model, share, layer):
@@ -689,6 +659,27 @@ def break_attn_heads_by_layer(zero_type, model, share, layer):
             return model
         else:
             raise ValueError("zeroing type is not supported!")
+
+
+def accumu_model_driver(model, share, zero_style, num_layers):
+    """
+    the driver function for breaking GPT-2 model
+    :param model: the oringal GPT-2 model to be modified
+    :type model: transformers.modeling_gpt2.GPT2LMHeadModel
+    :param share: % of attention heads to be zeroed
+    :type share: int
+    :param zero_style: the style of zeroing attention heads
+    :type zero_style: str
+    :param num_layers: numer of layers to be zeroed
+    :type num_layers: int
+    :return: the modified model
+    :rtype: transformers.modeling_gpt2.GPT2LMHeadModel
+    """
+    if num_layers > 13:
+        raise ValueError("GPT-2 model only has 12 layers")
+    for i in range(0, num_layers):
+        model = break_attn_heads_by_layer(zero_style, model, share, i)
+    return model
 
 
 def generate_texts(model_con, model_dem, tokenizer, out_file):

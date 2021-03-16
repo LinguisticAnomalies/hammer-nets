@@ -1,10 +1,12 @@
 '''
 script for evaluating CCC dataset on merged participant id,
 5 fold cross validation on CCC dataset to find the "balanced" train/test split,
-evaluate transcripts with permuted and cumulative methods
+evaluate transcripts with permuted and cumulative methods,
+for cumulative method only
 '''
 
 import logging
+import gc
 import sys
 import pickle
 import os
@@ -13,8 +15,9 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
-from util_fun import evaluate_model, break_attn_heads_by_layer
+from util_fun import evaluate_model, accumu_model_driver
 from util_fun import calculate_metrics, check_folder, check_file
+from util_fun import read_data
 
 
 def clean_ccc_text(text):
@@ -61,92 +64,37 @@ def process_ccc():
     # df.to_csv("data/ccc_cleaned.tsv", sep="\t", index=False)
 
 
-def split_dataset(ccc_df):
+def print_res(res_dict, model_style):
     """
-    split the cleaned dataset into training and test set
-    return the training and test set
-
-    :param ccc_df: cleaned ccc transcript dataset
-    :type ccc_df: pd.DataFrame
-    :return: training and test set
-    :rtype: pd.DataFrame, pd.DataFrame
-    """
-    pid = ccc_df["file"].unique()
-    # randomly select 30% pid as test set
-    pid_test = np.random.choice(pid, size=int(len(pid)*0.3), replace=False)
-    test_df = ccc_df.loc[ccc_df["file"].isin(pid_test)]
-    train_df = ccc_df.loc[~ccc_df["file"].isin(pid_test)]
-    return train_df, test_df
-
-
-def print_res(res_dict, hammer_style):
-    """
-    print out the best auc and accu results for c-d, c/d model
+    print out the best auc and associated accuracy results for c-d, c/d model on training set
+    return the best configuration for evaluating test set
 
     :param res_dict: a dictionary contains all evaluation results
     :type res_dict: dict
-    :param hammer_style: the style of changing attention heads, including oneime, accumu and combo
-    :type hammer_style: str
+    :param model_style: diff (c-d) or ratio (c/d) model
+    :type model_style: str
+    :return: the best configuration
+    :rtype: int/list
     """
-    # c-d model
-    max_diff_auc = max(res_dict["diff_auc"])
-    max_diff_auc_index = [index for index, value in enumerate(res_dict["diff_auc"]) if value == max_diff_auc]
-    max_diff_accu = max(res_dict["diff_accu"])
-    max_diff_accu_index = [index for index, value in enumerate(res_dict["diff_accu"]) if value == max_diff_accu]
-    # c/d model
-    max_ratio_auc = max(res_dict["ratio_auc"])
-    max_ratio_auc_index = [index for index, value in enumerate(res_dict["ratio_auc"]) if value == max_ratio_auc]
-    max_ratio_accu = max(res_dict["ratio_accu"])
-    max_ratio_accu_index = [index for index, value in enumerate(res_dict["ratio_accu"]) if value == max_ratio_accu]
-    if hammer_style == "accumu":
-        sys.stdout.write("best c-d auc index: {}\n".format([x+1 for x in max_diff_auc_index]))
-        sys.stdout.write("best c-d auc value: {}\n".format(max_diff_auc))
-        sys.stdout.write("best c-d accu index: {}\n".format([x+1 for x in max_diff_accu_index]))
-        sys.stdout.write("best c-d accu value: {}\n".format(max_diff_accu))
-        sys.stdout.write("best c/d auc index: {}\n".format([x+1 for x in max_ratio_auc_index]))
-        sys.stdout.write("best c/d auc value: {}\n".format(max_ratio_auc))
-        sys.stdout.write("best c/d accu index: {}\n".format([x+1 for x in max_ratio_accu_index]))
-        sys.stdout.write("best c/d accu value: {}\n".format(max_ratio_accu))
-    else:
-        sys.stdout.write("best c-d auc index: {}\n".format(max_diff_auc_index))
-        sys.stdout.write("best c-d auc value: {}\n".format(max_diff_auc))
-        sys.stdout.write("best c-d accu index: {}\n".format(max_diff_accu_index))
-        sys.stdout.write("best c-d accu value: {}\n".format(max_diff_accu))
-        sys.stdout.write("best c/d auc index: {}\n".format(max_ratio_auc_index))
-        sys.stdout.write("best c/d auc value: {}\n".format(max_ratio_auc))
-        sys.stdout.write("best c/d accu index: {}\n".format(max_ratio_accu_index))
-        sys.stdout.write("best c/d accu value: {}\n".format(max_ratio_accu))
+    best_auc = max(res_dict[model_style+"_auc"])
+    best_index = [index for index, value in enumerate(res_dict[model_style+"_auc"]) if value == best_auc]
+    sys.stdout.write("best configuration:\t{}\n".format(best_index))
+    for ind in best_index:
+        best_accu = res_dict[model_style+"_accu"][ind]
+        sys.stdout.write("best {} model index on training set:\t{}\n".format(model_style, ind+1))
+        sys.stdout.write("AUC for best {} model on training set:\t{}\n".format(model_style, best_auc))
+        sys.stdout.write("Accuracy for best {} model on training set:\t{}\n".format(model_style, best_accu))
+    return best_index
 
 
-def accumu_model_driver(model, share, zero_style, num_layers):
+def evaluate_df(train_df, test_df, zero_style, share):
     """
-    the driver function for breaking GPT-2 model
-    :param model: the oringal GPT-2 model to be modified
-    :type model: transformers.modeling_gpt2.GPT2LMHeadModel
-    :param share: % of attention heads to be zeroed
-    :type share: int
-    :param zero_style: the style of zeroing attention heads
-    :type zero_style: str
-    :param num_layers: numer of layers to be zeroed
-    :type num_layers: int
-    :return: the modified model
-    :rtype: transformers.modeling_gpt2.GPT2LMHeadModel
-    """
-    if num_layers > 13:
-        raise ValueError("GPT-2 model only has 12 layers")
-    for i in range(0, num_layers):
-        model = break_attn_heads_by_layer(zero_style, model, share, i)
-    return model
+    evaluate function for CCC training and test set
 
-
-def evaluate_ccc(ccc_df, hammer_style, zero_style, share):
-    """
-    evaluate the full ccc dataset
-
-    :param ccc_df: the ccc dataset
-    :type ccc_df: pd.DataFrame
-    :param hammer_style: the style of changing attention heads, including oneime, accumu and combo
-    :type hammer_style: str
+    :param train_df: the training set
+    :type train:_df pd.DataFrame
+    :param test_df: the test set
+    :type test_df: pd.DataFrame
     :param zero_style: the style of zeroing attn heads, supporting 'random','first' and 'shuffle'
     :type zero_style: str
     :param share: the % attention heads to be changed
@@ -154,89 +102,112 @@ def evaluate_ccc(ccc_df, hammer_style, zero_style, share):
     """
     gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
     model_con = GPT2LMHeadModel.from_pretrained("gpt2")
-    con_res = evaluate_model(ccc_df, model_con, gpt_tokenizer)
-    res_dict = {"con_auc": [], "con_accu": [],
-                "diff_auc": [], "diff_accu": [],
-                "ratio_auc": [], "ratio_accu": []}
-    if hammer_style == "accumu":
-        for i in range(1, 13):
-            model_dem = accumu_model_driver(model_con, share, zero_style, i)
-            res_dict = calculate_metrics(res_dict, model_dem,
-                                         gpt_tokenizer, ccc_df, con_res)
-    elif hammer_style == "onetime":
-        for i in range(0, 12):
-            model_con = GPT2LMHeadModel.from_pretrained("gpt2")
-            model_dem = break_attn_heads_by_layer(zero_style, model_con, share, i)
-            res_dict = calculate_metrics(res_dict, model_dem,
-                                         gpt_tokenizer, ccc_df, con_res)
-    elif hammer_style == "comb":
-        layers = [0, 1, 2, 3, 4, 8, 10]
+    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
+    con_res = evaluate_model(train_df, model_con, gpt_tokenizer)
+    res_dict_train = {"con_auc": [], "con_accu": [],
+                      "diff_auc": [], "diff_accu": [],
+                      "ratio_auc": [], "ratio_accu": []}
+    for i in range(1, 13):
+        model_dem = accumu_model_driver(model_dem, share, zero_style, i)
+        res_dict_train = calculate_metrics(res_dict_train, model_dem,
+                                           gpt_tokenizer, train_df, con_res)
+    sys.stdout.write("====================================\n")
+    for model_style in ("diff", "ratio"):
+        sys.stdout.write("################################\n")
+        sys.stdout.write("model style:\t{}\n".format(model_style))
+        best_index = print_res(res_dict_train, model_style)
+        # apply the best configuration on test set
+        con_test_res = evaluate_model(test_df, model_con, gpt_tokenizer)
         model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
-        for layer in layers:
-            model_dem = break_attn_heads_by_layer(zero_style, model_dem, share, layer)
-        res_dict = calculate_metrics(res_dict, model_dem,
-                                     gpt_tokenizer, ccc_df, con_res)
-    else:
-        raise ValueError("Wrong hammer style")
-    sys.stdout.write("========================\n")
-    sys.stdout.write("hammer style: {}\n".format(hammer_style))
-    sys.stdout.write("zero style: {}\n".format(zero_style))
-    sys.stdout.write("share: {}\n".format(share))
-    for k, v in res_dict.items():
-        sys.stdout.write("{}:\t{}\n".format(k, v))
-        sys.stdout.flush()
-    print_res(res_dict, hammer_style)
-    sys.stdout.write("========================\n")
+        res_dict_test = {"con_auc": [], "con_accu": [],
+                         "diff_auc": [], "diff_accu": [],
+                         "ratio_auc": [], "ratio_accu": []}
+        # if multiple best indeces exist
+        for item in best_index:
+            sys.stdout.write("+++++++++++++++++++++++++++++\n")
+            for i in range(1, item):
+                model_dem = accumu_model_driver(model_dem, share, zero_style, i)
+            res_dict_test = calculate_metrics(res_dict_test, model_dem,
+                                              gpt_tokenizer, test_df, con_test_res)
+            sys.stdout.write("AUC on test set on first {} layers:\t{}\n".format(item+1, res_dict_test[model_style+"_auc"][0]))
+            sys.stdout.write("Accuracy on test set on first {} layers:\t{}\n".format(item+1, res_dict_test[model_style+"_accu"][0]))
+    sys.stdout.write("====================================\n")
+    del model_con, model_dem, gpt_tokenizer
+    gc.collect()
 
 
-def cross_validation(ccc_df, hammer_style, zero_style, share, n_fold):
+def cross_validation(df_full, zero_style, share, n_fold):
     """
-    loosely n-fold cross validation for CCC dataset
+    loosely n-fold cross validation for a full transcript dataset
 
-    :param ccc_df: the ccc dataset
-    :type ccc_df: pd.DataFrame
-    :param hammer_style: the style of changing attention heads, including oneime, accumu and combo
-    :type hammer_style: str
+    :param df_full: the transcript dataset
+    :type df_full: pd.DataFrame
     :param zero_style: the style of zeroing attn heads, supporting 'random','first' and 'shuffle'
     :type zero_style: str
     :param share: the % attention heads to be changed
     :type share: int
-    :param n_fold: [description]
-    :type n_fold: [type]
+    :param n_fold: number of fold for cross validation
+    :type n_fold: int
     """
-    pid = ccc_df["file"].unique()
+    sys.stdout.write("%:\t{}\n".format(share))
+    pid = df_full["file"].unique()
     pid_fold = np.array_split(pid, n_fold)
+    # make output as markdown
     for i, array in enumerate(pid_fold):
         sys.stdout.write("---------------------------------\n")
         sys.stdout.write("fold {}...\n".format(i+1))
-        train_df = ccc_df[ccc_df["file"].isin(array)]
-        test_df = ccc_df[~ccc_df["file"].isin(array)]
-        sys.stdout.write("evaluating training set...\n")
-        evaluate_ccc(train_df, hammer_style, zero_style, share)
-        sys.stdout.write("evaluating testing set...\n")
-        evaluate_ccc(test_df, hammer_style, zero_style, share)
+        sys.stdout.write("training set pid: {}\n".format(array))
+        test_df = df_full[df_full["file"].isin(array)]
+        train_df = df_full[~df_full["file"].isin(array)]
+        evaluate_df(train_df, test_df, zero_style, share)
 
-
-if __name__ == "__main__":
-    start_time = datetime.now()
+def ccc_main():
     process_ccc()
     n_fold = 5
     ccc_df = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     check_folder("../results/logs/")
-    log_file = "../results/logs/ccc_eva.log"
+    log_file = "../results/logs/ccc_first_accumu.log"
     check_file(log_file)
     log = open(log_file, "a")
     sys.stdout = log
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
                         filemode="a", level=logging.INFO, filename=log_file)
-    for hammer_style in ("accumu", "onetime", "comb"):
-        for share in (25, 50, 75, 100):
-            for zero_style in ("first", "random"):
-                sys.stdout.write("---------------------------------\n")
-                sys.stdout.write("evaluating full ccc dataset\n")
-                evaluate_ccc(ccc_df, hammer_style, zero_style, share)
-                cross_validation(ccc_df, hammer_style, zero_style, share, n_fold)
-    sys.stdout.write("total running time: {}\n".format(datetime.now() - start_time))
+    for share in (25, 50, 75, 100):
+        cross_validation(ccc_df, "first", share, n_fold)
     sys.stdout.flush()
     log.close()
+
+
+def adress_main():
+    train_con = read_data("/edata/ADReSS-IS2020-data/transcription/train/cc/", "add_train_con")
+    train_dem = read_data(("/edata/ADReSS-IS2020-data/transcription/train/cd/", "add_train_dem"))
+    test = read_data(("/edata/ADReSS-IS2020-data/transcription/test/", "add_test"))
+    train = train_con.append(train_dem)
+    df_full = train.append(test)
+    df_full = df_full.sample(frac=1)
+    n_fold = 5
+    check_folder("../results/logs/")
+    log_file = "../results/logs/adr_first_accumu.log"
+    check_file(log_file)
+    log = open(log_file, "a")
+    sys.stdout = log
+    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
+                        filemode="a", level=logging.INFO, filename=log_file)
+    for share in (25, 50, 75, 100):
+        cross_validation(df_full, "first", share, n_fold)
+    sys.stdout.flush()
+    log.close()
+
+
+if __name__ == "__main__":
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    start_time = datetime.now()
+    sys.stdout.write("####################\n")
+    sys.stdout.write("####### CCC ########\n")
+    sys.stdout.write("####################\n")
+    ccc_main()
+    sys.stdout.write("####################\n")
+    sys.stdout.write("###### ADReSS ######\n")
+    sys.stdout.write("####################\n")
+    sys.stdout.write("total running time: {}\n".format(datetime.now() - start_time))
+    
