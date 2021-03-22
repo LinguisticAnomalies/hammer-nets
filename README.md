@@ -105,4 +105,40 @@ This repo contains codes and scripts for simulating Dementia by breaking neural 
 | 12  | 9.46  |  72 | 9.3  | 27  | 0.390  |
 
 
-### 5-Fold Cross Validation on CCC
+### 5 Fold Cross Validation Results
+
+#### CCC, first, diff
+
+| share  | train AUC (accuracy)  | test AUC (accuracy)  |
+|---|---|---|
+| 25  | 0.561 (0.554)  | 0.45 (0.452)  |
+| 50  | 0.569 (0.446)  | 0.438 (0.45)  |
+| 75  | 0.579 (0.593)  | 0.452 (0.454)  |
+| 100  | 0.491 (0.475)  | 0.406 (0.451)  |
+
+#### CCC, first, ratio
+
+| share  | train AUC (accuracy)  | test AUC (accuracy)  |
+|---|---|---|
+| 25  | 0.688 (0.647)  | 0.651 (0.606)  |
+| 50  | 0.707 (0.658)  | 0.672 (0.629)  |
+| 75  | **0.721 (0.676)**  | **0.729 (0.69)**  |
+| 100  | 0.661 (0.602)  | 0.671 (0.639)  |
+
+#### ADReSS, first, diff
+
+| share  | train AUC (accuracy)  | test AUC (accuracy)  |
+|---|---|---|
+| 25  | 0.72 (0.7)  | 0.69 (0.61)  |
+| 50  | 0.75 (0.69)  | 0.73 (0.69)  |
+| 75  | 0.77 (0.67)  | 0.7 (0.67)  |
+| 100  | 0.62 (0.56)  | 0.57  |
+
+#### ADReSS, first, ratio
+
+| share  | train AUC (accuracy)  | test AUC (accuracy)  |
+|---|---|---|
+| 25  | 0.79 (0.71)  | 0.72 (0.63)  |
+| 50  | **0.8 (0.71)**  | **0.76 (0.65)**   |
+| 75  | 0.75 (0.67)  | 0.71 (0.72)  |
+| 100  | 0.74 (0.68)  | 0.65 (0.59)  |
