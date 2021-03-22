@@ -17,51 +17,7 @@ import pandas as pd
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from util_fun import evaluate_model, accumu_model_driver
 from util_fun import calculate_metrics, check_folder, check_file
-from util_fun import read_data
-
-
-def clean_ccc_text(text):
-    """
-    basic pre-processing for CCC transcripts
-    :param text: the CCC transcript for pre-processing
-    :type text: str
-    """
-    text = text.lower().strip()
-    # remove () and [] and following punctuation
-    text = re.sub(r"[\(\[].*?[\)\]][?!,.]?", "", text)
-    # remove ^^_____ and following punctuation
-    text = re.sub(r'\^+_+\s?[?.!,]?', "", text)
-    text = re.sub(r'~','-',text)
-    text = re.sub(r'-',' ',text)
-    text = re.sub(r'[^\x00-\x7F]+','\'',text)
-    text = re.sub(r'\<|\>',' ',text)
-    text = re.sub(r"\_", "", text)
-    # remove unwanted whitespaces between words
-    text = re.sub(r'\s+', " ", text)
-    text = text.strip()
-    return text
-
-
-def process_ccc():
-    """
-    read and pre-process ccc dataset:
-        - read the ccc dataset pickle file
-        - clean the transcript
-        - save it to a local file
-    :return: ccc cleaned dataset
-    :rtype: pd.DataFrame
-    """
-    with open("/edata/dementia_cleaned_withId.pkl", "rb") as f:
-        df = pickle.load(f)
-    df["label"] = np.where(df["dementia"], 1, 0)
-    df = df[["ParticipantID", "Transcript", "label"]]
-    # rename columns to keep same track with ADReSS
-    df.columns = ["file", "text", "label"]
-    df["text"] = df["text"].apply(clean_ccc_text)
-    # drop empty rows if any
-    df = df[df["text"].str.len() > 0]
-    return df
-    # df.to_csv("data/ccc_cleaned.tsv", sep="\t", index=False)
+from util_fun import read_data, clean_ccc_text, process_ccc
 
 
 def print_res(res_dict, model_style):
@@ -77,19 +33,23 @@ def print_res(res_dict, model_style):
     :rtype: int/list
     """
     best_auc = max(res_dict[model_style+"_auc"])
-    best_index = [index for index, value in enumerate(res_dict[model_style+"_auc"]) if value == best_auc]
+    best_index = [index for index, value in enumerate(res_dict[model_style+"_auc"]) \
+        if value == best_auc]
     sys.stdout.write("best configuration:\t{}\n".format(best_index))
     for ind in best_index:
         best_accu = res_dict[model_style+"_accu"][ind]
-        sys.stdout.write("best {} model index on training set:\t{}\n".format(model_style, ind+1))
-        sys.stdout.write("AUC for best {} model on training set:\t{}\n".format(model_style, best_auc))
-        sys.stdout.write("Accuracy for best {} model on training set:\t{}\n".format(model_style, best_accu))
+        sys.stdout.write("best {} model index on training set:\t{}\n".format(model_style,
+               ind+1))
+        sys.stdout.write("AUC for best {} model on training set:\t{}\n".format(model_style,
+                   best_auc))
+        sys.stdout.write("Accuracy for best {} model on training set:\t{}\n".format(model_style,
+                     best_accu))
     return best_index
 
 
 def evaluate_df(train_df, test_df, zero_style, share):
     """
-    evaluate function for CCC training and test set
+    evaluate function for 1 fold of training and test set
 
     :param train_df: the training set
     :type train:_df pd.DataFrame
@@ -129,8 +89,10 @@ def evaluate_df(train_df, test_df, zero_style, share):
                 model_dem = accumu_model_driver(model_dem, share, zero_style, i)
             res_dict_test = calculate_metrics(res_dict_test, model_dem,
                                               gpt_tokenizer, test_df, con_test_res)
-            sys.stdout.write("AUC on test set on first {} layers:\t{}\n".format(item+1, res_dict_test[model_style+"_auc"][0]))
-            sys.stdout.write("Accuracy on test set on first {} layers:\t{}\n".format(item+1, res_dict_test[model_style+"_accu"][0]))
+            sys.stdout.write("AUC on test set on first {} layers:\t{}\n".format(item+1,
+                       res_dict_test[model_style+"_auc"][0]))
+            sys.stdout.write("Accuracy on test set on first {} layers:\t{}\n".format(item+1,
+                                  res_dict_test[model_style+"_accu"][0]))
     sys.stdout.write("====================================\n")
     del model_con, model_dem, gpt_tokenizer
     gc.collect()
@@ -161,53 +123,64 @@ def cross_validation(df_full, zero_style, share, n_fold):
         train_df = df_full[~df_full["file"].isin(array)]
         evaluate_df(train_df, test_df, zero_style, share)
 
-def ccc_main():
+def ccc_main(n_fold, zero_style):
+    """
+    main function for ccc cross validation
+
+    :param n_fold: number of fold for cross validation
+    :type n_fold: int
+    :param zero_style: the style of zeroing attention heads
+    :type zero_style: str
+    """
     process_ccc()
-    n_fold = 5
     ccc_df = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
-    check_folder("../results/logs/")
     log_file = "../results/logs/ccc_first_accumu.log"
     check_file(log_file)
-    log = open(log_file, "a")
-    sys.stdout = log
+    log_ccc = open(log_file, "a")
+    sys.stdout = log_ccc
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
                         filemode="a", level=logging.INFO, filename=log_file)
     for share in (25, 50, 75, 100):
-        cross_validation(ccc_df, "first", share, n_fold)
-    sys.stdout.flush()
-    log.close()
+        cross_validation(ccc_df, zero_style, share, n_fold)
 
 
-def adress_main():
+def adress_main(n_fold, zero_style):
+    """
+    main function for ADReSS cross validation
+
+    :param n_fold: number of fold for cross validation
+    :type n_fold: int
+    :param zero_style: the style of zeroing attention heads
+    :type zero_style: str
+    """
     train_con = read_data("/edata/ADReSS-IS2020-data/transcription/train/cc/", "add_train_con")
-    train_dem = read_data(("/edata/ADReSS-IS2020-data/transcription/train/cd/", "add_train_dem"))
-    test = read_data(("/edata/ADReSS-IS2020-data/transcription/test/", "add_test"))
+    train_dem = read_data("/edata/ADReSS-IS2020-data/transcription/train/cd/", "add_train_dem")
+    test = read_data("/edata/ADReSS-IS2020-data/transcription/test/", "add_test")
     train = train_con.append(train_dem)
     df_full = train.append(test)
     df_full = df_full.sample(frac=1)
-    n_fold = 5
     check_folder("../results/logs/")
     log_file = "../results/logs/adr_first_accumu.log"
     check_file(log_file)
-    log = open(log_file, "a")
-    sys.stdout = log
+    log_adr = open(log_file, "a")
+    sys.stdout = log_adr
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
                         filemode="a", level=logging.INFO, filename=log_file)
     for share in (25, 50, 75, 100):
-        cross_validation(df_full, "first", share, n_fold)
-    sys.stdout.flush()
-    log.close()
+        cross_validation(df_full, zero_style, share, n_fold)
 
 
 if __name__ == "__main__":
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     start_time = datetime.now()
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    CV_FOLD = 5
+    ZERO_STYLE = "random"
     sys.stdout.write("####################\n")
     sys.stdout.write("####### CCC ########\n")
     sys.stdout.write("####################\n")
-    ccc_main()
+    ccc_main(CV_FOLD, ZERO_STYLE)
     sys.stdout.write("####################\n")
     sys.stdout.write("###### ADReSS ######\n")
     sys.stdout.write("####################\n")
+    adress_main(CV_FOLD, ZERO_STYLE)
     sys.stdout.write("total running time: {}\n".format(datetime.now() - start_time))
-    
