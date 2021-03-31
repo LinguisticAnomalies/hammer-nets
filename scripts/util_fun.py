@@ -222,6 +222,86 @@ def process_wls_data():
         wls_frame_total.to_csv("data/wls_totoal.tsv", index=False, sep="\t")
 
 
+def get_pid(prefix_path):
+    """
+    get participant ids for DemBank & ADR dataset
+    return the pid as dataframe
+
+    :param prefix_path: the prefix path to .cha files for DemBank files
+    :type prefix_path: str
+    :return: the dataframe with file and pid as columns
+    :rtype: pd.DataFrame
+    """
+    pid_frame = pd.DataFrame(columns=["chat_id", "pid"])
+    for _, _, files in os.walk(prefix_path):
+        for file in files:
+            # iterate .cha files only
+            if file.endswith(".cha"):
+                with open(os.path.join(prefix_path, file), "r") as chat_file:
+                    file_id = file.split(".")[0]
+                    lines = chat_file.readline()
+                    while lines:
+                        if re.match(r'\@PID\:', lines):
+                            pid = lines.split("-")[1]
+                            pid_frame = pid_frame.append({"chat_id":file_id,
+                                                        "pid":pid},
+                                                        ignore_index=True)
+                        lines = chat_file.readline()
+    return pid_frame
+
+
+def get_dbca_dataset():
+    """
+    get pre-processed DBCA dataset
+    return the DBCA dataset
+    """
+    if os.path.exists("data/dbca.tsv"):
+        dbca = pd.read_csv("data/dbca.tsv", sep="\t")
+    else:
+        # get DementiaBank dataset
+        prefix_con = "/edata/lixx3013/dementia-data/DementiaBank//DemBank/Control/99/"
+        prefix_dem = "/edata/lixx3013/dementia-data/DementiaBank/DemBank/Dementia/169/"
+        db_con = read_data(prefix_con, "con")
+        db_dem = read_data(prefix_dem, "dem")
+        db_full = db_con.append(db_dem)
+        db_full = db_full.sample(frac=1)
+        # get participant ids for Dementia Bank dataset
+        db_con = "/edata/lixx3013/dementia-data/DementiaBank/DemBank/Control/cookie"
+        con_pid = get_pid(db_con)
+        db_dem = "/edata/lixx3013/dementia-data/DementiaBank/DemBank/Dementia/cookie"
+        dem_pid = get_pid(db_dem)
+        db_pid = con_pid.append(dem_pid)
+        db_full["chat_id"] = db_full["file"].apply(lambda x: x[:5])
+        db_full["id"] = db_full["file"].apply(lambda x: x[:3])
+        db_full = pd.merge(db_full, db_pid, on="chat_id")
+        # get participant ids for ADReSS dataset
+        ad_train_cc_pid = get_pid('/edata/lixx3013/artificial-impairment/data/ADReSS/ADReSS-IS2020-data/train/transcription/cc/')
+        ad_train_cd_pid = get_pid('/edata/lixx3013/artificial-impairment/data/ADReSS/ADReSS-IS2020-data/train/transcription/cd/')
+        ad_test_pid = get_pid('/edata/lixx3013/artificial-impairment/data/ADReSS/ADReSS-IS2020-data/test/transcription/')
+        adr_pid = ad_train_cc_pid["pid"].values.tolist() + ad_train_cd_pid["pid"].values.tolist() + ad_test_pid["pid"].values.tolist()
+        # get id from ADR dataset
+        adr_train = pd.read_csv("data/adress_train_full.tsv", sep="\t")
+        adr_test = pd.read_csv("data/adress_test_full.tsv", sep="\t")
+        adr_full = adr_train.append(adr_test)
+        adr_full["id"] = adr_full["file"].apply(lambda x: x[:3])
+        db_grouped = db_full.groupby(by=['id'])['pid'].apply(' '.join).reset_index()
+        # remove adr ids
+        dbca = pd.DataFrame()
+        for ids in db_grouped['pid']:
+            idlist = ids.split()
+            skip = 0
+            for i in idlist:
+                if i in adr_pid:
+                    skip = 1
+            if skip == 0:
+                compid = db_grouped[db_grouped['pid'] == ids]['id'].values[0] 
+                dbca = dbca.append(db_full[db_full['id'] == compid])
+        print("Controls: ", len(set(dbca[dbca['label'] == 0]['id'])))
+        print("Dementia: ", len(set(dbca[dbca['label'] == 1]['id'])))
+        dbca.to_csv("data/dbca.tsv", sep="\t", index=False)
+    return dbca
+
+
 def read_data(prefix_path, data_type):
     """
     read the data into DataFrame
@@ -398,7 +478,7 @@ def process_ccc():
     df["text"] = df["text"].apply(clean_ccc_text)
     # drop empty rows if any
     df = df[df["text"].str.len() > 0]
-    return df
+    df.to_csv("data/ccc_cleaned.tsv", sep="\t", index=False)
 
 
 def model_driver(input_text, model, tokenizer):
@@ -591,10 +671,9 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     """
     res_df = evaluate_model(input_frame, model_dem, tokenizer)
     # calculate mean perplexity for CCC dataset
-    res_df = res_df.groupby(["file", "label"])["perplexity"].mean().reset_index()
-    full_res = input_con.merge(res_df, on="file")
-    full_res.columns = ["file", "label", "con_perp", "discard", "dem_perp"]
-    full_res = full_res.drop(["discard"], axis=1)
+    res_df = res_df.groupby("file")["perplexity"].mean().reset_index()
+    full_res = pd.merge(input_con, res_df, on="file")
+    full_res.columns = ["file", "label", "con_perp", "dem_perp"]
     labels = full_res["label"].values.tolist()
     con_perp = full_res["con_perp"].values.tolist()
     # calculate control model auc and accuracy
@@ -695,6 +774,9 @@ def generate_texts(model_con, model_dem, tokenizer, out_file):
     :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
     :param out_file: the name of 
     """
+    if USE_GPU:
+        model_con.to("cpu")
+        model_dem.to("cpu")
     torch.manual_seed(42)
     # in case of duplicate outputs
     check_file(out_file)
