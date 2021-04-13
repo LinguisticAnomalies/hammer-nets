@@ -105,6 +105,7 @@ def cross_validation(df_full, zero_style, share,
                                           model_dem, tokenizer,train_df, con_res_df)
         best_train_index = print_res(train_res)
         best_train_index = best_train_index[0]
+        sys.stdout.write("best index:\t{}\n".format(best_train_index+1))
         best_train_dict = {}
         # narrow down to the best result
         for k, v in train_res.items():
@@ -178,13 +179,13 @@ if __name__ == "__main__":
             sys.stdout.write("==================================\n")
             sys.stdout.write("zero style:\t{}\n".format(zero_style))
             sys.stdout.write("share:\t{}\n".format(share))
-            sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
-            sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
             cv_dict = cross_validation(df_full, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
             print_table("ADReSS", cv_dict)
             cv_dict = cross_validation(db, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
             print_table("DemBank", cv_dict)
             cv_dict = cross_validation(ccc, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
+            sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
+            sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
             print_table("CCC", cv_dict)
             sys.stdout.write("==================================\n")
             sys.stdout.write("\n")
