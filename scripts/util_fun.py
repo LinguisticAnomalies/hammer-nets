@@ -250,6 +250,41 @@ def get_pid(prefix_path):
     return pid_frame
 
 
+def get_db_dataset():
+    """
+    get dementia bank dataset with 99 control, 169 dementia cases
+    """
+    if os.path.exists("data/db.tsv"):
+        db_full = pd.read_csv("data/db.tsv", sep="\t")
+    else:
+        # get DementiaBank dataset
+        prefix_con = "/edata/lixx3013/dementia-data/DementiaBank//DemBank/Control/99/"
+        prefix_dem = "/edata/lixx3013/dementia-data/DementiaBank/DemBank/Dementia/169/"
+        db_con = read_data(prefix_con, "con")
+        db_dem = read_data(prefix_dem, "dem")
+        db_full = db_con.append(db_dem)
+        db_full = db_full.sample(frac=1)
+        # get participant ids for Dementia Bank dataset
+        db_con = "/edata/lixx3013/dementia-data/DementiaBank/DemBank/Control/cookie"
+        con_pid = get_pid(db_con)
+        db_dem = "/edata/lixx3013/dementia-data/DementiaBank/DemBank/Dementia/cookie"
+        dem_pid = get_pid(db_dem)
+        db_pid = con_pid.append(dem_pid)
+        db_full["chat_id"] = db_full["file"].apply(lambda x: x[:5])
+        db_full["id"] = db_full["file"].apply(lambda x: x[:3])
+        db_full = pd.merge(db_full, db_pid, on="chat_id")
+        # add MMSE
+        db_meta_data_file = "/edata/lixx3013/hammer-nets/scripts/data/demantiabank_metadata.csv"
+        db_meta_df = pd.read_csv(db_meta_data_file)
+        db_meta_df['id'] = db_meta_df['id'].astype(str).str.zfill(3)
+        db_full["id"] = db_full["id"].astype(str).str.zfill(3)
+        db_full = pd.merge(db_full, db_meta_df, on='id')
+        db_full = db_full[["text", "label", "chat_id",
+                           "id", "pid", "mms"]]
+        db_full.rename(columns={"id": "file", "mms": "mmse"}, inplace=True)
+        db_full.to_csv("data/db.tsv", sep="\t", index=False)
+    return db_full
+
 def get_dbca_dataset():
     """
     get pre-processed DBCA dataset
@@ -298,6 +333,14 @@ def get_dbca_dataset():
                 dbca = dbca.append(db_full[db_full['id'] == compid])
         print("Controls: ", len(set(dbca[dbca['label'] == 0]['id'])))
         print("Dementia: ", len(set(dbca[dbca['label'] == 1]['id'])))
+        # add MMSE
+        db_meta_data_file = "/edata/lixx3013/hammer-nets/scripts/data/demantiabank_metadata.csv"
+        db_meta_df = pd.read_csv(db_meta_data_file)
+        db_meta_df['id'] = db_meta_df['id'].astype(str).str.zfill(3)
+        dbca["id"] = dbca["id"].astype(str).str.zfill(3)
+        dbca = pd.merge(dbca, db_meta_df, on='id')
+        dbca = dbca[["file", "text", "label",
+                     "chat_id", "id", "pid", "mms"]]
         dbca.to_csv("data/dbca.tsv", sep="\t", index=False)
     return dbca
 
@@ -531,7 +574,8 @@ def evaluate_model(test_frame, model, tokenizer):
     :rtype: pandas.DataFrame
     """
     model.eval()
-    res_df = pd.DataFrame(columns=["file", "label", "perplexity"])
+    res_df = pd.DataFrame(columns=["file", "label", "perplexity", "mmse"])
+    columns = test_frame.columns
     if USE_GPU:
         model.to(DEVICE)
     for _, row in test_frame.iterrows():
@@ -540,12 +584,20 @@ def evaluate_model(test_frame, model, tokenizer):
             outputs = model_driver(trans, model, tokenizer)
             # calculate perplexity score
             perp = math.exp(outputs[0].item())
-            eval_dict = {"file": row["file"],
-                         "label": row["label"],
-                         "perplexity": perp}
-            del outputs, trans
-            gc.collect()
+            # add MMSE column
+            if "mmse" in columns:
+                eval_dict = {"file": row["file"],
+                             "label": row["label"],
+                             "perplexity": perp,
+                             "mmse": row["mmse"]}
+            else:
+                eval_dict = {"file": row["file"],
+                             "label": row["label"],
+                             "perplexity": perp,
+                             "mmse": 0}
             res_df = res_df.append(eval_dict, ignore_index=True)
+            del outputs
+            gc.collect()
     return res_df
 
 
@@ -571,92 +623,11 @@ def calculate_accuracy(labels, perp):
     return accuracy, auc_level
 
 
-def calculate_auc_for_diff_model(labels, con_col, dem_col):
-    """
-    calculate auc for c-d model only
-    :param labels: transcript labels, 0 as control, 1 as dementia
-    :type labels: Pandas.Series
-    :param con_col: control model perpelxity
-    :type con_col: Pandas.Series
-    :param dem_col: dementia model perplexity
-    :type dem_col: Pandas.Series
-    :return: the auc for c-d model
-    :rtype: float
-    """
-    labels = labels.values.tolist()
-    diff_perp = con_col - dem_col
-    diff_perp = diff_perp.values.tolist()
-    return calculate_accuracy(labels, diff_perp)
-
-
-def calculate_auc_for_ratio_model(labels, con_col, dem_col):
-    """
-    calculate auc for c/d model only
-    :param labels: transcript labels, 0 as control, 1 as dementia
-    :type labels: Pandas.Series
-    :param con_col: control model perpelxity
-    :type con_col: Pandas.Series
-    :param dem_col: dementia model perplexity
-    :type dem_col: Pandas.Series
-    :return: the auc for c-d model
-    :rtype: float
-    """
-    labels = labels.values.tolist()
-    ratio_perp = con_col/dem_col
-    ratio_perp = ratio_perp.values.tolist()
-    return calculate_accuracy(labels, ratio_perp)
-
-
-def calculate_auc_for_log_model(labels, con_col, dem_col):
-    """
-    calculate auc for log(c)-log(d) model only
-    :param labels: transcript labels, 0 as control, 1 as dementia
-    :type labels: Pandas.Series
-    :param con_col: control model perpelxity
-    :type con_col: Pandas.Series
-    :param dem_col: dementia model perplexity
-    :type dem_col: Pandas.Series
-    :return: the auc for c-d model
-    :rtype: float
-    """
-    labels = labels.values.tolist()
-    log_perp = np.log(con_col) - np.log(dem_col)
-    log_perp = log_perp.values.tolist()
-    return calculate_accuracy(labels, log_perp)
-
-
-def calculate_aucs(eva_method, full_res):
-    """
-    calcualte different aucs with given folder prefix and evaluation method
-
-    :param eva_method: the evaluation method
-    :type eva_method: str
-    :param full_res: the dataframe with merged results
-    :type full_res: pandas.DataFrame
-    :return: the AUC for the given evaluation metrics
-    """
-    if eva_method == "diff":
-        # calculate AUC for c-d model
-        aucs = calculate_auc_for_diff_model(full_res["label"],
-                                            full_res["con_perp"],
-                                            full_res["dem_perp"])
-    elif eva_method == "ratio":
-        # calculate AUC for c/d model
-        aucs = calculate_auc_for_ratio_model(full_res["label"],
-                                             full_res["con_perp"],
-                                             full_res["dem_perp"])
-    else:
-        aucs = calculate_auc_for_log_model(full_res["label"],
-                                           full_res["con_perp"],
-                                           full_res["dem_perp"])
-    return aucs
-
-
 def calculate_metrics(res_dict, model_dem, tokenizer,
-                      input_frame, input_con):
+                      input_frame, con_res_df):
     """
-    evaluate the dementia model and calculate AUC and accuracy on given training and test dataset,
-    return the evaluation result, or save to local file
+    calculate AUC and accuracy for control, dementia, c/d model
+    return the evaluation result
 
     :param res_dict: a dictionary to store all metrics
     :type res_dict: dict
@@ -666,25 +637,46 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
     :param input_frame: the dataframe to be evaluated
     :type input_frame: pd.DataFrame
-    :param input_con: the control model evaluation dataframe
-    :type input_con: pd.DataFrame
+    :param con_res_df: the groupby control model evaluation result dataframe
+    :type con_res_df: pd.DataFrame
     """
-    res_df = evaluate_model(input_frame, model_dem, tokenizer)
-    # calculate mean perplexity for CCC dataset
-    res_df = res_df.groupby("file")["perplexity"].mean().reset_index()
-    full_res = pd.merge(input_con, res_df, on="file")
-    full_res.columns = ["file", "label", "con_perp", "dem_perp"]
+    '''
+    con_res_df = evaluate_model(input_frame, model_con, tokenizer)
+    # for CCC, calculate mean ppl for each pid
+    con_res_df = con_res_df.groupby(["file", "label", "mmse"])["perplexity"].mean().reset_index()
+    con_res_df.rename(columns={"perplexity": "con_ppl"}, inplace=True)
+    '''
+    dem_res_df = evaluate_model(input_frame, model_dem, tokenizer)
+    dem_res_df = dem_res_df.groupby(["file", "label", "mmse"])["perplexity"].mean().reset_index()
+    dem_res_df.rename(columns={"perplexity": "dem_ppl"}, inplace=True)
+    full_res = pd.merge(con_res_df, dem_res_df, on=["file", "label", "mmse"])
+    mmse = full_res["mmse"].values.tolist()
+    # control model AUC, accuracy, cor
     labels = full_res["label"].values.tolist()
-    con_perp = full_res["con_perp"].values.tolist()
-    # calculate control model auc and accuracy
-    con_accu, con_auc = calculate_accuracy(labels, con_perp)
-    res_dict["con_auc"].append(round(con_auc, 2))
-    res_dict["con_accu"].append(round(con_accu, 2))
-    # calculate AUC and accuracy under diff, ratio and log
-    for eva_method in ("diff", "ratio"):
-        accu, auc = calculate_aucs(eva_method, full_res)
-        res_dict["{}_auc".format(eva_method)].append(round(auc, 2))
-        res_dict["{}_accu".format(eva_method)].append(round(accu, 2))
+    con_ppl = full_res["con_ppl"].values.tolist()
+    con_accu, con_auc = calculate_accuracy(labels, con_ppl)
+    c_r = np.corrcoef(con_ppl, mmse)[1,0]
+    res_dict["con_auc"].append(round(con_auc, 3))
+    res_dict["con_accu"].append(round(con_accu, 3))
+    res_dict["con_cor"].append(round(c_r, 3))
+    res_dict["con_ppl"] = round(np.mean(con_ppl), 3)
+    # dementia model AUC, accuracy, cor
+    dem_ppl = full_res["dem_ppl"].values.tolist()
+    dem_accu, dem_auc = calculate_accuracy(labels, dem_ppl)
+    d_r = np.corrcoef(dem_ppl, mmse)[1,0]
+    res_dict["dem_auc"].append(round(dem_auc, 3))
+    res_dict["dem_accu"].append(round(dem_accu, 3))
+    res_dict["dem_cor"].append(round(d_r, 3))
+    res_dict["dem_ppl"] = round(np.mean(dem_ppl), 3)
+    # c/d model AUC, accuracy, cor
+    ratio_ppl = full_res["con_ppl"]/full_res["dem_ppl"]
+    ratio_ppl = ratio_ppl.values.tolist()
+    ratio_accu, ratio_auc = calculate_accuracy(labels, ratio_ppl)
+    ratio_r = np.corrcoef(ratio_ppl, mmse)[1,0]
+    res_dict["ratio_auc"].append(round(ratio_auc, 3))
+    res_dict["ratio_accu"].append(round(ratio_accu, 3))
+    res_dict["ratio_cor"].append(round(ratio_r, 3))
+    res_dict["ratio_ppl"] = round(np.mean(ratio_ppl), 3)
     return res_dict
 
 
@@ -775,9 +767,11 @@ def generate_texts(model_con, model_dem, tokenizer, out_file):
     :param out_file: the name of 
     """
     if USE_GPU:
-        model_con.to("cpu")
-        model_dem.to("cpu")
+        model_con.to(DEVICE)
+        model_dem.to(DEVICE)
+        tokenizer.to(DEVICE)
     torch.manual_seed(42)
+    np.random.seed(42)
     # in case of duplicate outputs
     check_file(out_file)
     out_df = pd.DataFrame(columns=["sentence", "control", "dementia"])
