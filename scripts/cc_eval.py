@@ -6,14 +6,13 @@ for cumulative method only
 '''
 
 import logging
-import gc
 import sys
 import os
 from datetime import datetime
 import numpy as np
 import pandas as pd
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
-from util_fun import accumu_model_driver, read_data
+from util_fun import accumu_model_driver
 from util_fun import calculate_metrics, check_folder, check_file
 from util_fun import evaluate_model, get_db_dataset
 

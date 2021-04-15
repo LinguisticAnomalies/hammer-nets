@@ -7,38 +7,90 @@ import gc
 import sys
 import os
 from datetime import datetime
+import pickle
 import numpy as np
 import pandas as pd
+from torch._C import Value
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from util_fun import evaluate_model, accumu_model_driver
 from util_fun import calculate_metrics, check_folder, check_file
 from util_fun import read_data, get_db_dataset
 
 
-def print_res(res_dict):
+def print_res(res_dict, model_type):
     """
     find the best configuration, including best index, AUC and accruacy
     if there are multiple indexes, find the index with highest accuracy
 
     :param res_dict: a dictionary contains all evaluation results
     :type res_dict: dict
+    :param model_type: the model type, including 'ratio' and 'norm'
+    :type model_type: str
     :return: the best configuration
     :rtype: int/list
     """
-    best_auc = max(res_dict["ratio_auc"])
+    best_auc = max(res_dict[model_type+"_auc"])
     best_index = [index for index, value in enumerate(res_dict["ratio_auc"]) \
         if value == best_auc]
     # if there is multiple best indexes
     if len(best_index) > 1:
         # find the highest accuracy
-        accus = [res_dict["ratio_accu"][ind] for ind in best_index]
+        accus = [res_dict[model_type+"_accu"][ind] for ind in best_index]
         best_accu = max(accus)
         best_index = [index for index, value in enumerate(accus)\
             if value == best_accu]
     else:
-        best_accu = res_dict["ratio_accu"][best_index[0]]
+        best_accu = res_dict[model_type+"_accu"][best_index[0]]
     return best_index
 
+
+def find_best_train(data_name, model_con, tokenizer,
+                    share, zero_style):
+    """
+    find the best configuration, return the best metrics
+
+    :param data_name: the name of dataset
+    :type data_name: str
+    :param model_con: the control model
+    :type model_con: transformers.modeling_gpt2.GPT2LMHeadModel
+    :param tokenizer: the GPT2 tokenizer
+    :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
+    :param zero_style: the style of zeroing attn heads, supporting 'random','first' and 'shuffle'
+    :type zero_style: str
+    :param share: the % attention heads to be changed
+    :type share: int
+    """
+    start_time = datetime.now()
+    train_res = {"con_auc": [], "con_accu": [],
+                 "con_cor": [], "con_ppl": [],
+                 "dem_auc": [], "dem_accu": [],
+                 "dem_cor": [], "dem_ppl": [],
+                 "ratio_auc": [], "ratio_accu": [],
+                 "ratio_cor": [], "ratio_ppl": [],
+                 "norm_auc":[], "norm_accu":[],
+                 "norm_cor":[], "norm_ppl":[]}
+    if data_name == "adr":
+        train_df = pd.read_csv("data/adress_full.tsv", sep="\t")
+    elif data_name == "ccc":
+        train_df = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
+    elif data_name == "db":
+        train_df = pd.read_csv("data/db.tsv", sep="\t")
+    else:
+        raise ValueError("data name is not supported.")
+    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
+    con_res_df = evaluate_model(train_df, model_con, tokenizer)
+    con_res_df = con_res_df.groupby(["file", "label", "mmse"])["perplexity"].mean().reset_index()
+    con_res_df.rename(columns={"perplexity": "con_ppl"}, inplace=True)
+    for i in range(1, 13):
+        model_dem = accumu_model_driver(model_dem, share, zero_style, i)
+        train_res = calculate_metrics(train_res, model_dem,
+                                      tokenizer,train_df, con_res_df)
+    # write to pickle file
+    out_f = "../results/ppl/accumu_{}_{}_{}.pkl".format(data_name, zero_style, share)
+    with open(out_f, "wb") as handle:
+        pickle.dump(train_res, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    sys.stdout.write("total running time: {}\n".format(datetime.now() - start_time))
+        
 
 def cross_validation(base_df, test_df, model_con,
                      model_dem, tokenizer):
@@ -64,13 +116,17 @@ def cross_validation(base_df, test_df, model_con,
                  "dem_auc": [], "dem_accu": [],
                  "dem_cor": [], "dem_ppl": [],
                  "ratio_auc": [], "ratio_accu": [],
-                 "ratio_cor": [], "ratio_ppl": []}
+                 "ratio_cor": [], "ratio_ppl": [],
+                 "norm_auc": [], "norm_accu": [],
+                 "norm_cor": [], "norm_ppl": []}
     test_res = {"con_auc": [], "con_accu": [],
                 "con_cor": [], "con_ppl": [],
                 "dem_auc": [], "dem_accu": [],
                 "dem_cor": [], "dem_ppl": [],
                 "ratio_auc": [], "ratio_accu": [],
-                "ratio_cor": [], "ratio_ppl": []}
+                "ratio_cor": [], "ratio_ppl": [],
+                "norm_auc": [], "norm_accu": [],
+                "norm_cor": [], "norm_ppl": []}
     # control model evaluation results
     con_res_df = evaluate_model(base_df, model_con, tokenizer)
     con_res_df = con_res_df.groupby(["file", "label", "mmse"])["perplexity"].mean().reset_index()
@@ -110,19 +166,32 @@ def print_table(data_name, cv_dict):
     ))
 
 
+def main_driver(model_con, tokenizer):
+    """
+    the driver function for cross validation,
+    apply ADReSS best configuration on CCC and DB dataset
+    """
+    zero_style = "first"
+    share = "50"
+    layers = 12
+    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
+    db = get_db_dataset()
+    ccc = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
+    adr_full = pd.read_csv("data/adress_full.tsv", sep="\t")
+    # best configuration on full ADReSS dataset
+    zero_style = "first"
+    share = 100
+    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
+    model_dem = accumu_model_driver(model_dem, share, zero_style, layers)
+    sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
+    sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
+    train_res, test_res = cross_validation(adr_full, db, model_con,
+                                           model_dem, tokenizer)
+    print_table("adr", train_res)
+    print_table("db", test_res)
+
+
 if __name__ == "__main__":
     model_con = GPT2LMHeadModel.from_pretrained("gpt2")
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
-    db = get_db_dataset()
-    ccc = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
-    # best configuration on full ADReSS dataset
-    zero_style = "first"
-    share = 50
-    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
-    model_dem = accumu_model_driver(model_dem, share, zero_style, 9)
-    sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
-    sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
-    train_res, test_res = cross_validation(db, ccc, model_con,
-                                           model_dem, tokenizer)
-    print_table("base: DB", train_res)
-    print_table("test: ccc", test_res)
+    main_driver(model_con, tokenizer)

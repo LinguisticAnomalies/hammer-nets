@@ -339,8 +339,7 @@ def get_dbca_dataset():
         db_meta_df['id'] = db_meta_df['id'].astype(str).str.zfill(3)
         dbca["id"] = dbca["id"].astype(str).str.zfill(3)
         dbca = pd.merge(dbca, db_meta_df, on='id')
-        dbca = dbca[["file", "text", "label",
-                     "chat_id", "id", "pid", "mms"]]
+        dbca = dbca[["text", "label", "chat_id", "id", "pid", "mms"]]
         dbca.to_csv("data/dbca.tsv", sep="\t", index=False)
     return dbca
 
@@ -677,6 +676,15 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     res_dict["ratio_accu"].append(round(ratio_accu, 3))
     res_dict["ratio_cor"].append(round(ratio_r, 3))
     res_dict["ratio_ppl"] = round(np.mean(ratio_ppl), 3)
+    # norm ppl diff
+    norm_ppl = (np.log(full_res["con_ppl"]) - np.log(full_res["dem_ppl"]))/np.log(full_res["con_ppl"])
+    norm_ppl = norm_ppl.values.tolist()
+    norm_accu, norm_auc = calculate_accuracy(labels, norm_ppl)
+    norm_r = np.corrcoef(norm_ppl, mmse)[1,0]
+    res_dict["norm_auc"].append(round(norm_auc, 3))
+    res_dict["norm_accu"].append(round(norm_accu, 3))
+    res_dict["norm_cor"].append(round(norm_r, 3))
+    res_dict["norm_ppl"] = round(np.mean(norm_ppl), 3)
     return res_dict
 
 
