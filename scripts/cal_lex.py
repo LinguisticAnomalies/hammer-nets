@@ -2,46 +2,31 @@
 calculate log lexical frequency on generated text
 '''
 import string
-import argparse
 from datetime import datetime
-from collections import Counter
 import pandas as pd
 import numpy as np
 from nltk.tokenize import word_tokenize
 from nltk import pos_tag
+from nltk.tokenize import sent_tokenize
 from nltk.corpus import stopwords
 from scipy.stats import ttest_ind
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+from util_fun import accumu_model_driver, generate_texts
 from util_fun import get_word_lf, load_word_dist
 
 
-def parse_args():
-    """
-    add arguments
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--data_type", type=str,
-                        help="address mmse dataset type")
-    parser.add_argument("--share", type=int,
-                        help="the % of attn head impaired")
-    parser.add_argument("--hammer_style", type=str,
-                        help="impaired style")
-    parser.add_argument("--zero_style", type=str,
-                        help="zero attn heads style")
-    return parser.parse_args()
 
-
-def pre_process(res_file):
+def pre_process(res_df):
     """
     add more stopwords a list of generated text,
     remove stopwords from the generate text
     return the cleaned tokens
 
-    :param res_file: the path to text generation dataset
-    :type res_file: str
+    :param res_df: the dataframe for langauge generation
+    :type res_df: pd.DataFrame
     :return: control model tokens and dementia model tokens
     :rtype: list, list
     """
-    res_df = pd.read_csv(res_file, sep="\t")
     con_text = res_df["control"].values.tolist()
     dem_text = res_df["dementia"].values.tolist()
     bird_text = res_df["sentence"].values.tolist()
@@ -101,50 +86,43 @@ def calculate_lexical_frequency(con_tokens, dem_tokens):
     print("control model unique word ratio: {:0.2f}".format(len(set(con_tokens))/len(con_tokens)))
     print("dementia model unique word ratio: {:0.2f}".format(len(set(dem_tokens))/len(dem_tokens)))
     # if p<0.05 -> significant difference between two samples
-    print("t-test p-value: {:0.3f}".format(ttest_ind(con_lf, dem_lf)[1]))
-    con_common = [token for token, token_count in Counter(con_tokens).most_common(10)]
-    dem_common = [token for token, token_count in Counter(dem_tokens).most_common(10)]
-    print("top 10 most common tokens in control text: {}".format(con_common))
-    print("top 10 most common tokens in dementia text: {}".format(dem_common))
+    print("t-test p-value: {:0.3f}".format(ttest_ind(con_lf, dem_lf, alternative="less")[1]))
 
 
-def cal_driver(hammer_style, zero_style, share, data_type):
+def cal_driver(data_name):
     """
     calculate the lexical frequency for generated text,
     the driver function
 
-    :param hammer_style: impaired style
-    :type hammer_style: str
-    :param zero_style: zeroing attn head style
-    :type zero_style: str
-    :param share: % of attn head impaired
-    :type share: int
-    :param data_type: address mmse dataset type
-    :type data_type: str
+    :param data_name: the best pattern given the data name
     """
-    if hammer_style == "comb":
-        res_file = "../results/text/{}_{}_{}_{}.tsv".format(hammer_style, zero_style, share, data_type)
-        con_tokens, dem_tokens = pre_process(res_file)
-        print("=== {} model {} {}% log lexical frequency =====".format(hammer_style, zero_style, share))
-        calculate_lexical_frequency(con_tokens, dem_tokens)
-    elif hammer_style == "accumu":
-        for layer in range(1, 13):
-            print("=== {} model {} {}% log first {} layer lexical frequency =====".format(hammer_style, zero_style, share, layer))
-            res_file = "../results/text/{}_{}_{}_{}_layer_{}.tsv".format(hammer_style, zero_style, share, data_type, layer)
-            con_tokens, dem_tokens = pre_process(res_file)
-            calculate_lexical_frequency(con_tokens, dem_tokens)
-            print("=====================================")
-    elif hammer_style == "onetime":
-        for layer in range(0, 12):
-            print("=== {} model {} {}% log {}-th layer lexical frequency =====".format(hammer_style, zero_style, share, layer))
-            res_file = "../results/text/{}_{}_{}_{}_layer_{}.tsv".format(hammer_style, zero_style, share, data_type, layer)
-            con_tokens, dem_tokens = pre_process(res_file)
-            calculate_lexical_frequency(con_tokens, dem_tokens)
-            print("=====================================")
-    
+    model_con = GPT2LMHeadModel.from_pretrained("gpt2")
+    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
+    gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+    zero_style = "first"
+    bird_df = pd.read_csv("data/bird_frame.tsv", sep="\t")
+    bird_all = bird_df[bird_df["file"] == "mct_all.txt"]["text"].values.tolist()[0]
+    bird_sents = sent_tokenize(bird_all)
+    if data_name == "adr":
+        share = 50
+        layers = 9
+    elif data_name == "db":
+        share = 25
+        layers = 7
+    elif data_name == "ccc":
+        share = 100
+        layers = 9
+    else:
+        raise ValueError("wrong data name")
+    model_dem = accumu_model_driver(model_dem, share,
+                                    zero_style, layers)
+    lan_gene = generate_texts(model_con, model_dem,
+                              gpt_tokenizer, bird_sents)
+    con_tokens, dem_tokens = pre_process(lan_gene)
+    calculate_lexical_frequency(con_tokens, dem_tokens)
+
 
 if __name__ == "__main__":
     start_time = datetime.now()
-    args = parse_args()
-    cal_driver(args.hammer_style, args.zero_style, args.share, args.data_type)
+    cal_driver("adr")
     print("Total time running :{}\n".format(datetime.now() - start_time))

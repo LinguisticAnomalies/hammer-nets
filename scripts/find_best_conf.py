@@ -173,7 +173,7 @@ def main_driver(model_con, tokenizer):
     """
     zero_style = "first"
     share = "50"
-    layers = 12
+    layers = 9
     model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
     db = get_db_dataset()
     ccc = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")

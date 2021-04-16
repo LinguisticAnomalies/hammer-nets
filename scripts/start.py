@@ -44,10 +44,10 @@ if not os.path.exists("data/adress_train_full.tsv") and \
     train_frame.to_csv("data/adress_train_full.tsv", index=False, sep="\t")
     test_frame.to_csv("data/adress_test_full.tsv", index=False, sep="\t")
 # bird dataset
+bird_frame = read_data(PREFIX_BIRD, TRANS_DICT[PREFIX_BIRD])
+bird_frame.to_csv("data/bird_frame.tsv", index=False, sep="\t")
 if not os.path.exists("data/adress_train_full.tsv") and \
     not os.path.exists("data/adress_test_full.tsv"):
-    bird_frame = read_data(PREFIX_BIRD, TRANS_DICT[PREFIX_BIRD])
-    bird_frame.to_csv("data/bird_frame.tsv", index=False, sep="\t")
     train_frame = pd.read_csv("data/adress_train_full.tsv", sep="\t")
     test_frame = pd.read_csv("data/adress_test_full.tsv", sep="\t")
 # subset transcripts with >20 mmse

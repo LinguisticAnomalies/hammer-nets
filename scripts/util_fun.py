@@ -639,12 +639,6 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     :param con_res_df: the groupby control model evaluation result dataframe
     :type con_res_df: pd.DataFrame
     """
-    '''
-    con_res_df = evaluate_model(input_frame, model_con, tokenizer)
-    # for CCC, calculate mean ppl for each pid
-    con_res_df = con_res_df.groupby(["file", "label", "mmse"])["perplexity"].mean().reset_index()
-    con_res_df.rename(columns={"perplexity": "con_ppl"}, inplace=True)
-    '''
     dem_res_df = evaluate_model(input_frame, model_dem, tokenizer)
     dem_res_df = dem_res_df.groupby(["file", "label", "mmse"])["perplexity"].mean().reset_index()
     dem_res_df.rename(columns={"perplexity": "dem_ppl"}, inplace=True)
@@ -658,7 +652,7 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     res_dict["con_auc"].append(round(con_auc, 3))
     res_dict["con_accu"].append(round(con_accu, 3))
     res_dict["con_cor"].append(round(c_r, 3))
-    res_dict["con_ppl"] = round(np.mean(con_ppl), 3)
+    res_dict["con_ppl"].append((np.mean(con_ppl), 3))
     # dementia model AUC, accuracy, cor
     dem_ppl = full_res["dem_ppl"].values.tolist()
     dem_accu, dem_auc = calculate_accuracy(labels, dem_ppl)
@@ -666,7 +660,7 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     res_dict["dem_auc"].append(round(dem_auc, 3))
     res_dict["dem_accu"].append(round(dem_accu, 3))
     res_dict["dem_cor"].append(round(d_r, 3))
-    res_dict["dem_ppl"] = round(np.mean(dem_ppl), 3)
+    res_dict["dem_ppl"].append(round(np.mean(dem_ppl), 3))
     # c/d model AUC, accuracy, cor
     ratio_ppl = full_res["con_ppl"]/full_res["dem_ppl"]
     ratio_ppl = ratio_ppl.values.tolist()
@@ -675,7 +669,7 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     res_dict["ratio_auc"].append(round(ratio_auc, 3))
     res_dict["ratio_accu"].append(round(ratio_accu, 3))
     res_dict["ratio_cor"].append(round(ratio_r, 3))
-    res_dict["ratio_ppl"] = round(np.mean(ratio_ppl), 3)
+    res_dict["ratio_ppl"].append(round(np.mean(ratio_ppl), 3))
     # norm ppl diff
     norm_ppl = (np.log(full_res["con_ppl"]) - np.log(full_res["dem_ppl"]))/np.log(full_res["con_ppl"])
     norm_ppl = norm_ppl.values.tolist()
@@ -684,7 +678,7 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     res_dict["norm_auc"].append(round(norm_auc, 3))
     res_dict["norm_accu"].append(round(norm_accu, 3))
     res_dict["norm_cor"].append(round(norm_r, 3))
-    res_dict["norm_ppl"] = round(np.mean(norm_ppl), 3)
+    res_dict["norm_ppl"].append(round(np.mean(norm_ppl), 3))
     return res_dict
 
 
@@ -761,31 +755,29 @@ def accumu_model_driver(model, share, zero_style, num_layers):
     return model
 
 
-def generate_texts(model_con, model_dem, tokenizer, out_file):
+def generate_texts(model_con, model_dem, tokenizer, bird_sents):
     """
     generate additional 20 tokens for each sentence of healthy bird transcript,
     find the highest non-empty beam result for both dementia and control model
-    save all qualified results as a DataFrame and save to local file
+    return the output as a dataframe
     :param model_con: the control model
     :type model_con: transformers.modeling_gpt2.GPT2LMHeadModel
     :param model_dem: the dementia model
     :type model_dem: transformers.modeling_gpt2.GPT2LMHeadModel
     :param tokenizer: the GPT-2 tokenizer
     :type tokenizer: transformers.tokenization_gpt2.GPT2Tokenizer
-    :param out_file: the name of 
+    :param bird_sents: the sentences from bird control transcript
+    :type bird_df: list
     """
-    if USE_GPU:
-        model_con.to(DEVICE)
-        model_dem.to(DEVICE)
-        tokenizer.to(DEVICE)
     torch.manual_seed(42)
     np.random.seed(42)
     # in case of duplicate outputs
-    check_file(out_file)
     out_df = pd.DataFrame(columns=["sentence", "control", "dementia"])
+    '''
     bird_df = pd.read_csv("data/bird_frame.tsv", sep="\t")
     bird_all = bird_df[bird_df["file"] == "mct_all.txt"]["text"].values.tolist()[0]
     bird_sents = sent_tokenize(bird_all)
+    '''
     # iterate all senteces from healthy bird transcript
     for sent in bird_sents:
         encoded_input = tokenizer.encode(sent, add_special_tokens=True, return_tensors="pt")
@@ -815,4 +807,6 @@ def generate_texts(model_con, model_dem, tokenizer, out_file):
                 out_dict = {"sentence": sent, "control": con_beam, "dementia": dem_beam}
                 out_df = out_df.append(out_dict, ignore_index=True)
                 break
-    out_df.to_csv(out_file, index=False, sep="\t", mode="a")
+    del model_con, model_dem
+    gc.collect()
+    return out_df

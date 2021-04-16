@@ -8,6 +8,7 @@ for cumulative method only
 import logging
 import sys
 import os
+import pickle
 from datetime import datetime
 import numpy as np
 import pandas as pd
@@ -71,25 +72,33 @@ def cross_validation(df_full, zero_style, share,
                 "train_dem_cor":[], "train_dem_ppl":[],
                 "train_ratio_auc":[], "train_ratio_accu":[],
                 "train_ratio_cor":[], "train_ratio_ppl":[],
+                "train_norm_auc":[], "train_norm_accu":[],
+                "train_norm_cor":[], "train_norm_ppl":[],
                 "test_con_auc":[], "test_con_accu":[],
                 "test_con_cor":[], "test_con_ppl":[],
                 "test_dem_auc":[], "test_dem_accu":[],
                 "test_dem_cor":[], "test_dem_ppl":[],
                 "test_ratio_auc":[], "test_ratio_accu":[],
-                "test_ratio_cor":[], "test_ratio_ppl":[]}
+                "test_ratio_cor":[], "test_ratio_ppl":[],
+                "test_norm_auc":[], "test_norm_accu":[],
+                "test_norm_cor":[], "test_norm_ppl":[]}
     for i, array in enumerate(pid_fold):
         train_res = {"con_auc": [], "con_accu": [],
-                     "con_cor": [], "con_ppl": [],
-                     "dem_auc": [], "dem_accu": [],
-                     "dem_cor": [], "dem_ppl": [],
-                     "ratio_auc": [], "ratio_accu": [],
-                     "ratio_cor": [], "ratio_ppl": []}
+                 "con_cor": [], "con_ppl": [],
+                 "dem_auc": [], "dem_accu": [],
+                 "dem_cor": [], "dem_ppl": [],
+                 "ratio_auc": [], "ratio_accu": [],
+                 "ratio_cor": [], "ratio_ppl": [],
+                 "norm_auc": [], "norm_accu": [],
+                 "norm_cor": [], "norm_ppl": []}
         test_res = {"con_auc": [], "con_accu": [],
                     "con_cor": [], "con_ppl": [],
                     "dem_auc": [], "dem_accu": [],
                     "dem_cor": [], "dem_ppl": [],
                     "ratio_auc": [], "ratio_accu": [],
-                    "ratio_cor": [], "ratio_ppl": []}
+                    "ratio_cor": [], "ratio_ppl": [],
+                    "norm_auc": [], "norm_accu": [],
+                    "norm_cor": [], "norm_ppl": []}
         test_df = df_full[df_full["file"].isin(array)]
         train_df = df_full[~df_full["file"].isin(array)]
         # control model evaluation results
@@ -131,14 +140,19 @@ def cross_validation(df_full, zero_style, share,
     return fold_res
 
 
-def print_table(data_name, cv_dict):
+def print_table(data_name, cv_dict, share, zero_style):
     """
-    print the dictionary as markdown table
+    print the dictionary as markdown table,
+    write cv results to local pickle file
 
     :param data_name: the name of current cv dataset
     :type data_name: str
     :param cv_dict: n-fold cv result
     :type cv_dict: dict
+    :param zero_style: the style of zeroing attn heads, supporting 'random','first' and 'shuffle'
+    :type zero_style: str
+    :param share: the % attention heads to be changed
+    :type share: int
     """
     #sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
     #sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
@@ -154,6 +168,10 @@ def print_table(data_name, cv_dict):
         np.mean(cv_dict["ratio_accu"]), np.std(cv_dict["ratio_accu"]),
         np.mean(cv_dict["ratio_cor"]), np.std(cv_dict["ratio_cor"])
     ))
+    # write to pickle file
+    out_f = "../results/ppl/cv_accumu_{}_{}_{}.pkl".format(data_name, zero_style, share)
+    with open(out_f, "wb") as handle:
+        pickle.dump(cv_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == "__main__":
@@ -175,17 +193,16 @@ if __name__ == "__main__":
     gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
     for zero_style in ("first", "random"):
         for share in (25, 50, 75, 100):
-            sys.stdout.write("==================================\n")
+            sys.stdout.write("\n")
             sys.stdout.write("zero style:\t{}\n".format(zero_style))
             sys.stdout.write("share:\t{}\n".format(share))
             cv_dict = cross_validation(df_full, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
-            print_table("ADReSS", cv_dict)
+            print_table("adr", cv_dict, share, zero_style)
             cv_dict = cross_validation(db, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
-            print_table("DemBank", cv_dict)
+            print_table("db", cv_dict, share, zero_style)
             cv_dict = cross_validation(ccc, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
             sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
             sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
-            print_table("CCC", cv_dict)
-            sys.stdout.write("==================================\n")
+            print_table("ccc", cv_dict, share, zero_style)
             sys.stdout.write("\n")
     sys.stdout.write("total running time: {}\n".format(datetime.now()-start_time))
