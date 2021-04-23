@@ -652,7 +652,7 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     res_dict["con_auc"].append(round(con_auc, 3))
     res_dict["con_accu"].append(round(con_accu, 3))
     res_dict["con_cor"].append(round(c_r, 3))
-    res_dict["con_ppl"].append((np.mean(con_ppl), 3))
+    res_dict["con_ppl"].append((np.mean(con_ppl)))
     # dementia model AUC, accuracy, cor
     dem_ppl = full_res["dem_ppl"].values.tolist()
     dem_accu, dem_auc = calculate_accuracy(labels, dem_ppl)
@@ -660,7 +660,7 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     res_dict["dem_auc"].append(round(dem_auc, 3))
     res_dict["dem_accu"].append(round(dem_accu, 3))
     res_dict["dem_cor"].append(round(d_r, 3))
-    res_dict["dem_ppl"].append(round(np.mean(dem_ppl), 3))
+    res_dict["dem_ppl"].append(np.mean(dem_ppl))
     # c/d model AUC, accuracy, cor
     ratio_ppl = full_res["con_ppl"]/full_res["dem_ppl"]
     ratio_ppl = ratio_ppl.values.tolist()
@@ -669,7 +669,7 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     res_dict["ratio_auc"].append(round(ratio_auc, 3))
     res_dict["ratio_accu"].append(round(ratio_accu, 3))
     res_dict["ratio_cor"].append(round(ratio_r, 3))
-    res_dict["ratio_ppl"].append(round(np.mean(ratio_ppl), 3))
+    res_dict["ratio_ppl"].append((np.mean(ratio_ppl)))
     # norm ppl diff
     norm_ppl = (np.log(full_res["con_ppl"]) - np.log(full_res["dem_ppl"]))/np.log(full_res["con_ppl"])
     norm_ppl = norm_ppl.values.tolist()
@@ -678,7 +678,7 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     res_dict["norm_auc"].append(round(norm_auc, 3))
     res_dict["norm_accu"].append(round(norm_accu, 3))
     res_dict["norm_cor"].append(round(norm_r, 3))
-    res_dict["norm_ppl"].append(round(np.mean(norm_ppl), 3))
+    res_dict["norm_ppl"].append(np.mean(norm_ppl))
     return res_dict
 
 

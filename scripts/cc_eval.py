@@ -43,6 +43,114 @@ def print_res(res_dict):
     return best_index
 
 
+def str2array(input_str):
+    """
+    transform the read-in str from dataframe to ndarray
+
+    :param input_str: the input str from dataframe
+    :type input_str: str
+    """
+    tr_list = input_str[1:-1].split(" ")
+    tr_list = [item for item in tr_list if item]
+    tr_list = [int(item) for item in tr_list]
+    return tr_list
+
+
+def test(df_full, fold_file, zero_style, share, model_con, tokenizer):
+    """
+    test Serguei's code
+
+    :param df_full: [description]
+    :type df_full: [type]
+    :param fold_file: [description]
+    :type fold_file: [type]
+    """
+    cv_dict = {"train_con_auc":[], "train_con_accu":[],
+                "train_con_cor":[], "train_con_ppl":[],
+                "train_dem_auc":[], "train_dem_accu":[],
+                "train_dem_cor":[], "train_dem_ppl":[],
+                "train_ratio_auc":[], "train_ratio_accu":[],
+                "train_ratio_cor":[], "train_ratio_ppl":[],
+                "train_norm_auc":[], "train_norm_accu":[],
+                "train_norm_cor":[], "train_norm_ppl":[],
+                "test_con_auc":[], "test_con_accu":[],
+                "test_con_cor":[], "test_con_ppl":[],
+                "test_dem_auc":[], "test_dem_accu":[],
+                "test_dem_cor":[], "test_dem_ppl":[],
+                "test_ratio_auc":[], "test_ratio_accu":[],
+                "test_ratio_cor":[], "test_ratio_ppl":[],
+                "test_norm_auc":[], "test_norm_accu":[],
+                "test_norm_cor":[], "test_norm_ppl":[]}
+    for i in range(5):
+        cur_dem_train = fold_file.loc[(fold_file["fold"] == i) & (fold_file["label"] == 1)]["trainfiles"].values.tolist()[0]
+        cur_con_train = fold_file.loc[(fold_file["fold"] == i) & (fold_file["label"] == 0)]["trainfiles"].values.tolist()[0]
+        cur_dem_test = fold_file.loc[(fold_file["fold"] == i) & (fold_file["label"] == 1)]["testfiles"].values.tolist()[0]
+        cur_con_test = fold_file.loc[(fold_file["fold"] == i) & (fold_file["label"] == 0)]["testfiles"].values.tolist()[0]
+        train_fold = str2array(cur_dem_train) + str2array(cur_con_train)
+        test_fold = str2array(cur_dem_test) + str2array(cur_con_test)
+        # shuffle pid
+        np.random.shuffle(train_fold)
+        np.random.shuffle(test_fold)
+        train_df = df_full[df_full["file"].isin(train_fold)]
+        test_df = df_full[df_full["file"].isin(test_fold)]
+        # dict for storing results
+        train_res = {"con_auc": [], "con_accu": [],
+                    "con_cor": [], "con_ppl": [],
+                    "dem_auc": [], "dem_accu": [],
+                    "dem_cor": [], "dem_ppl": [],
+                    "ratio_auc": [], "ratio_accu": [],
+                    "ratio_cor": [], "ratio_ppl": [],
+                    "norm_auc": [], "norm_accu": [],
+                    "norm_cor": [], "norm_ppl": []}
+        test_res = {"con_auc": [], "con_accu": [],
+                    "con_cor": [], "con_ppl": [],
+                    "dem_auc": [], "dem_accu": [],
+                    "dem_cor": [], "dem_ppl": [],
+                    "ratio_auc": [], "ratio_accu": [],
+                    "ratio_cor": [], "ratio_ppl": [],
+                    "norm_auc": [], "norm_accu": [],
+                    "norm_cor": [], "norm_ppl": []}
+        # control model evaluation results
+        con_res_df = evaluate_model(train_df, model_con, tokenizer)
+        con_res_df = con_res_df.groupby(["file", "label", "mmse"])["perplexity"].mean().reset_index()
+        con_res_df.rename(columns={"perplexity": "con_ppl"}, inplace=True)
+        model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
+        # find the best configuration
+        for i in range(1, 13):
+            model_dem = accumu_model_driver(model_dem, share, zero_style, i)
+            train_res = calculate_metrics(train_res,
+                                          model_dem, tokenizer,train_df, con_res_df)
+        best_train_index = print_res(train_res)
+        best_train_index = best_train_index[0]
+        best_train_dict = {}
+        # narrow down to the best result
+        for k, v in train_res.items():
+            if isinstance(v, list):
+                best_train_dict[k] = v[best_train_index]
+            else:
+                best_train_dict[k] = v
+        # evaluate the dementia model
+        model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
+        model_dem = accumu_model_driver(model_dem, share, zero_style, best_train_index+1)
+        con_res_df_test = evaluate_model(test_df, model_con, tokenizer)
+        con_res_df_test = con_res_df_test.groupby(["file", "label", "mmse"])["perplexity"].mean().reset_index()
+        con_res_df_test.rename(columns={"perplexity": "con_ppl"}, inplace=True)
+        test_res = calculate_metrics(test_res, model_dem,
+                                     tokenizer, test_df, con_res_df_test)
+        # add to fold dictionary
+        for k, v in best_train_dict.items():
+            if isinstance(v, list): 
+                cv_dict["train_"+k].extend(v)
+            else:
+                cv_dict["train_"+k].append(v)
+        for k, v in test_res.items():
+            if isinstance(v, list): 
+                cv_dict["test_"+k].extend(v)
+            else:
+                cv_dict["test_"+k].append(v)
+    return cv_dict
+
+
 def cross_validation(df_full, zero_style, share,
                      n_fold, model_con, tokenizer):
     """
@@ -65,6 +173,7 @@ def cross_validation(df_full, zero_style, share,
     :rtype: dict
     """
     pid = df_full["file"].unique()
+    np.random.shuffle(pid)
     pid_fold = np.array_split(pid, n_fold)
     fold_res = {"train_con_auc":[], "train_con_accu":[],
                 "train_con_cor":[], "train_con_ppl":[],
@@ -113,7 +222,6 @@ def cross_validation(df_full, zero_style, share,
                                           model_dem, tokenizer,train_df, con_res_df)
         best_train_index = print_res(train_res)
         best_train_index = best_train_index[0]
-        sys.stdout.write("best index:\t{}\n".format(best_train_index+1))
         best_train_dict = {}
         # narrow down to the best result
         for k, v in train_res.items():
@@ -131,12 +239,15 @@ def cross_validation(df_full, zero_style, share,
                                      tokenizer, test_df, con_res_df_test)
         # add to fold dictionary
         for k, v in best_train_dict.items():
-            fold_res["train_"+k].append(v)
-        for k, v in test_res.items():
-            if isinstance(v, list):
-                fold_res[k] = v[0]
+            if isinstance(v, list): 
+                fold_res["train_"+k].extend(v)
             else:
-                fold_res[k] = v
+                fold_res["train_"+k].append(v)
+        for k, v in test_res.items():
+            if isinstance(v, list): 
+                fold_res["test_"+k].extend(v)
+            else:
+                fold_res["test_"+k].append(v)
     return fold_res
 
 
@@ -154,20 +265,6 @@ def print_table(data_name, cv_dict, share, zero_style):
     :param share: the % attention heads to be changed
     :type share: int
     """
-    #sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
-    #sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
-    sys.stdout.write("| {} | 0/0 | {} ({})| {} ({}) | {} ({})| {} ({})| {} ({}) | {} ({})| {} ({})| {} ({}) | {} ({})|\n".format(
-        data_name,
-        np.mean(cv_dict["con_auc"]), np.std(cv_dict["con_auc"]),
-        np.mean(cv_dict["con_accu"]), np.std(cv_dict["con_accu"]),
-        np.mean(cv_dict["con_cor"]), np.std(cv_dict["con_cor"]),
-        np.mean(cv_dict["dem_auc"]), np.std(cv_dict["dem_auc"]),
-        np.mean(cv_dict["dem_accu"]), np.std(cv_dict["dem_accu"]),
-        np.mean(cv_dict["dem_cor"]), np.std(cv_dict["dem_cor"]),
-        np.mean(cv_dict["ratio_auc"]), np.std(cv_dict["ratio_auc"]),
-        np.mean(cv_dict["ratio_accu"]), np.std(cv_dict["ratio_accu"]),
-        np.mean(cv_dict["ratio_cor"]), np.std(cv_dict["ratio_cor"])
-    ))
     # write to pickle file
     out_f = "../results/ppl/cv_accumu_{}_{}_{}.pkl".format(data_name, zero_style, share)
     with open(out_f, "wb") as handle:
@@ -177,32 +274,30 @@ def print_table(data_name, cv_dict, share, zero_style):
 if __name__ == "__main__":
     start_time = datetime.now()
     CV_FOLD = 5
-    np.random.seed(42)
+    np.random.seed(1234)
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-    check_folder("../results/logs/")
-    log_file = "../results/logs/accumu_full_comb.log"
-    check_file(log_file)
-    log_adr = open(log_file, "a")
-    sys.stdout = log_adr
-    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
-                        filemode="a", level=logging.INFO, filename=log_file)
     df_full = pd.read_csv("data/adress_full.tsv", sep="\t")
     db = get_db_dataset()
     ccc = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
     model_con = GPT2LMHeadModel.from_pretrained("gpt2")
     gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
-    for zero_style in ("first", "random"):
-        for share in (25, 50, 75, 100):
-            sys.stdout.write("\n")
-            sys.stdout.write("zero style:\t{}\n".format(zero_style))
-            sys.stdout.write("share:\t{}\n".format(share))
-            cv_dict = cross_validation(df_full, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
-            print_table("adr", cv_dict, share, zero_style)
-            cv_dict = cross_validation(db, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
-            print_table("db", cv_dict, share, zero_style)
-            cv_dict = cross_validation(ccc, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
-            sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
-            sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
-            print_table("ccc", cv_dict, share, zero_style)
-            sys.stdout.write("\n")
+    db_folds = pd.read_csv("db_folds.txt")
+    db_folds["label"] = np.where(db_folds["label"] == "dem", 1, 0)
+    cv_dict = test(db, db_folds, "first", 50, model_con, gpt_tokenizer)
+    #sys.stdout.write("| dataset | con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
+    #sys.stdout.write("| - | - | - | - | - | - | - | - | - | - |\n")
+    zero_style = "first"
+    for share in (25, 50, 75, 100):
+        cv_dict = cross_validation(df_full, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
+        print_table("adr", cv_dict, share, zero_style)
+        sys.stdout.write("adr, {}, {} finished\n".format(share, zero_style))
+        cv_dict = cross_validation(db, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
+        print_table("db", cv_dict, share, zero_style)
+        sys.stdout.write("db, {}, {} finished\n".format(share, zero_style))
+        cv_dict = cross_validation(ccc, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
+        print_table("ccc", cv_dict, share, zero_style)
+        sys.stdout.write("ccc, {}, {} finished\n".format(share, zero_style))
+        cv_dict = test(db, db_folds, zero_style, share, model_con, gpt_tokenizer)
+        print_table("db", cv_dict, share, zero_style)
+        sys.stdout.write("db, {}, {} finished\n".format(share, zero_style))
     sys.stdout.write("total running time: {}\n".format(datetime.now()-start_time))
