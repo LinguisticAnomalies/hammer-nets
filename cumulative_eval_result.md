@@ -18,44 +18,51 @@
 
 ## full dataset best pattern, first
 
-| dataset | best index| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|
-| - | - | - | - | - | - | - | - | - | - | - |
-| adr-25 | 7 | 0.616 (0.0)| 0.613 (0.0) | -0.292 (0.0)| 0.399 (0.0)| 0.368 (0.0) | 0.033 (0.0)| 0.783 (0.0)| 0.716 (0.0) | -0.511 (0.0)|
-| **adr-50 | 9 | 0.616 (0.0)| 0.613 (0.0) | -0.292 (0.0)| 0.367 (0.0)| 0.406 (0.0) | 0.116 (0.0)| 0.796 (0.0)| 0.716 (0.0) | -0.564 (0.0)**|
-| adr-75 | 7 | 0.616 (0.0)| 0.613 (0.0) | -0.292 (0.0)| 0.26 (0.0)| 0.342 (0.0) | 0.373 (0.0)| 0.742 (0.0)| 0.645 (0.0) | -0.45 (0.0)|
-| adr-100 | 7 | 0.616 (0.0)| 0.613 (0.0) | -0.292 (0.0)| 0.428 (0.0)| 0.465 (0.0) | 0.073 (0.0)| 0.739 (0.0)| 0.652 (0.0) | -0.468 (0.0)|
+### ADReSS
 
 | dataset | best index| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|
 | - | - | - | - | - | - | - | - | - | - | - |
-| **db-25 | 7 | 0.582 (0.0)| 0.563 (0.0) | -0.119 (0.0)| 0.425 (0.0)| 0.44 (0.0) | 0.011 (0.0)| 0.748 (0.0)| 0.687 (0.0) | -0.352 (0.0)**|
+| adr-25 | 7 | 0.616 (0.0)| 0.613 (0.0) | -0.292 (0.0)| 0.399 (0.0)| 0.368 (0.0) | 0.033 (0.0)| 0.783 (0.0)| 0.716 (0.0) | -0.511 (0.0)|
+| adr-50 | 9 | 0.616 (0.0)| 0.613 (0.0) | -0.292 (0.0)| 0.367 (0.0)| 0.406 (0.0) | 0.116 (0.0)| 0.796 (0.0)| 0.716 (0.0) | -0.564 (0.0)|
+| adr-75 | 7 | 0.616 (0.0)| 0.613 (0.0) | -0.292 (0.0)| 0.26 (0.0)| 0.342 (0.0) | 0.373 (0.0)| 0.742 (0.0)| 0.645 (0.0) | -0.45 (0.0)|
+| adr-100 | 7 | 0.616 (0.0)| 0.613 (0.0) | -0.292 (0.0)| 0.428 (0.0)| 0.465 (0.0) | 0.073 (0.0)| 0.739 (0.0)| 0.652 (0.0) | -0.468 (0.0)|
+
+### DementiaBank
+
+| dataset | best index| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|
+| - | - | - | - | - | - | - | - | - | - | - |
+| db-25 | 7 | 0.582 (0.0)| 0.563 (0.0) | -0.119 (0.0)| 0.425 (0.0)| 0.44 (0.0) | 0.011 (0.0)| 0.748 (0.0)| 0.687 (0.0) | -0.352 (0.0)|
 | db-50 | 9 | 0.582 (0.0)| 0.563 (0.0) | -0.119 (0.0)| 0.408 (0.0)| 0.448 (0.0) | 0.082 (0.0)| 0.688 (0.0)| 0.619 (0.0) | -0.301 (0.0)|
 | db-75 | 7 | 0.582 (0.0)| 0.563 (0.0) | -0.119 (0.0)| 0.303 (0.0)| 0.366 (0.0) | 0.316 (0.0)| 0.698 (0.0)| 0.616 (0.0) | -0.274 (0.0)|
 | db-100 | 8 | 0.582 (0.0)| 0.563 (0.0) | -0.119 (0.0)| 0.424 (0.0)| 0.44 (0.0) | 0.001 (0.0)| 0.744 (0.0)| 0.683 (0.0) | -0.38 (0.0)|
+
+### CCC
 
 | dataset | best index| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|
 | - | - | - | - | - | - | - | - | - | - | - |
 | ccc-25 | 12 | 0.74 (0.0)| 0.646 (0.0) | nan (nan)| 0.654 (0.0)| 0.628 (0.0) | nan (nan)| 0.715 (0.0)| 0.669 (0.0) | nan (nan)|
 | ccc-50 | 12 | 0.74 (0.0)| 0.646 (0.0) | nan (nan)| 0.607 (0.0)| 0.584 (0.0) | nan (nan)| 0.77 (0.0)| 0.721 (0.0) | nan (nan)|
 | ccc-75 | 11 | 0.74 (0.0)| 0.646 (0.0) | nan (nan)| 0.466 (0.0)| 0.473 (0.0) | nan (nan)| 0.78 (0.0)| 0.713 (0.0) | nan (nan)|
-| **ccc-100 | 9 | 0.74 (0.0)| 0.646 (0.0) | nan (nan)| 0.515 (0.0)| 0.514 (0.0) | nan (nan)| 0.785 (0.0)| 0.698 (0.0) | nan (nan)**|
+| ccc-100 | 9 | 0.74 (0.0)| 0.646 (0.0) | nan (nan)| 0.515 (0.0)| 0.514 (0.0) | nan (nan)| 0.785 (0.0)| 0.698 (0.0) | nan (nan)|
+
 
 ## cross dataset
 
-best pattern on ADReSS
+### 50%, first 9 layers, ADReSS
 
-| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|
+ dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|
 | - | - | - | - | - | - | - | - | - | - | - |
-| DB | 0/0 | 0.582 (0.0)| 0.563 (0.0) | -0.119 (0.0)| 0.408 (0.0)| 0.448 (0.0) | 0.082 (0.0)| 0.688 (0.0)| 0.619 (0.0) | -0.301 (0.0)|
 | ccc | 0/0 | 0.74 (0.0)| 0.646 (0.0) | nan (nan)| 0.639 (0.0)| 0.592 (0.0) | nan (nan)| 0.739 (0.0)| 0.69 (0.0) | nan (nan)|
+| db | 0/0 | 0.582 (0.0)| 0.563 (0.0) | -0.119 (0.0)| 0.408 (0.0)| 0.448 (0.0) | 0.082 (0.0)| 0.688 (0.0)| 0.619 (0.0) | -0.301 (0.0)|
 
-best pattern on DB
+### 25%, first 7 layers, DB
 
 | dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|
 | - | - | - | - | - | - | - | - | - | - | - |
 | adr | 0/0 | 0.616 (0.0)| 0.613 (0.0) | -0.292 (0.0)| 0.399 (0.0)| 0.368 (0.0) | 0.033 (0.0)| 0.783 (0.0)| 0.716 (0.0) | -0.511 (0.0)|
 | ccc | 0/0 | 0.74 (0.0)| 0.646 (0.0) | nan (nan)| 0.658 (0.0)| 0.61 (0.0) | nan (nan)| 0.701 (0.0)| 0.659 (0.0) | nan (nan)|
 
-best pattern on ccc
+### 100%, first 9 layers, CCC
 
 | dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|
 | - | - | - | - | - | - | - | - | - | - | - |

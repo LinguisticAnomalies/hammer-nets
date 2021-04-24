@@ -171,27 +171,61 @@ def main_driver(model_con, tokenizer):
     the driver function for cross validation,
     apply ADReSS best configuration on CCC and DB dataset
     """
-    zero_style = "first"
-    share = "50"
-    layers = 9
-    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
     db = get_db_dataset()
     ccc = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
     adr_full = pd.read_csv("data/adress_full.tsv", sep="\t")
     # best configuration on full ADReSS dataset
     zero_style = "first"
-    share = 100
+    share = 50
+    layers = 9
     model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
     model_dem = accumu_model_driver(model_dem, share, zero_style, layers)
     sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
     sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
+    train_res, test_res = cross_validation(ccc, db, model_con,
+                                           model_dem, tokenizer)
+    print_table("ccc", train_res)
+    print_table("db", test_res)
+    sys.stdout.write("\n")
+    # best configuration on db
+    sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
+    sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
+    share = 25
+    layers = 7
+    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
+    model_dem = accumu_model_driver(model_dem, share, zero_style, layers)
+    train_res, test_res = cross_validation(adr_full, ccc, model_con,
+                                           model_dem, tokenizer)
+    print_table("adr", train_res)
+    print_table("ccc", test_res)
+    # best configuration on ccc
+    sys.stdout.write("\n")
+    sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
+    sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
+    # best configuration on db
+    share = 100
+    layers = 9
+    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
+    model_dem = accumu_model_driver(model_dem, share, zero_style, layers)
     train_res, test_res = cross_validation(adr_full, db, model_con,
                                            model_dem, tokenizer)
     print_table("adr", train_res)
     print_table("db", test_res)
 
 
+
 if __name__ == "__main__":
     model_con = GPT2LMHeadModel.from_pretrained("gpt2")
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
+    #main_driver(model_con, tokenizer)
+    zero_style = "first"
+    '''
+    for share in (25, 50, 75, 100):
+        find_best_train("adr", model_con, tokenizer,
+                        share, zero_style)
+        find_best_train("ccc", model_con, tokenizer,
+                        share, zero_style)
+        find_best_train("db", model_con, tokenizer,
+                        share, zero_style)
+    '''
     main_driver(model_con, tokenizer)
