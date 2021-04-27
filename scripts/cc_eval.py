@@ -277,7 +277,10 @@ if __name__ == "__main__":
     np.random.seed(1234)
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     df_full = pd.read_csv("data/adress_full.tsv", sep="\t")
+    # prob ad 169
     db = get_db_dataset()
+    # full db dataset
+    db_full = pd.read_csv("data/db_full.tsv", sep="\t")
     ccc = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
     model_con = GPT2LMHeadModel.from_pretrained("gpt2")
     gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
@@ -288,6 +291,7 @@ if __name__ == "__main__":
     #sys.stdout.write("| - | - | - | - | - | - | - | - | - | - |\n")
     zero_style = "first"
     for share in (25, 50, 75, 100):
+        '''
         cv_dict = cross_validation(df_full, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
         print_table("adr", cv_dict, share, zero_style)
         sys.stdout.write("adr, {}, {} finished\n".format(share, zero_style))
@@ -297,7 +301,13 @@ if __name__ == "__main__":
         cv_dict = cross_validation(ccc, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
         print_table("ccc", cv_dict, share, zero_style)
         sys.stdout.write("ccc, {}, {} finished\n".format(share, zero_style))
+        '''
+        # test serguei's code
         cv_dict = test(db, db_folds, zero_style, share, model_con, gpt_tokenizer)
-        print_table("db", cv_dict, share, zero_style)
-        sys.stdout.write("db, {}, {} finished\n".format(share, zero_style))
+        print_table("db_s", cv_dict, share, zero_style)
+        sys.stdout.write("db, serguei's code, {}, {} finished\n".format(share, zero_style))
+        # test my code
+        cv_dict = cross_validation(db, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
+        print_table("db_c", cv_dict, share, zero_style)
+        sys.stdout.write("db, my code, {}, {} finished\n".format(share, zero_style))
     sys.stdout.write("total running time: {}\n".format(datetime.now()-start_time))

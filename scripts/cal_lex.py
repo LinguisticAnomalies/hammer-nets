@@ -107,8 +107,8 @@ def cal_driver(data_name):
         share = 50
         layers = 9
     elif data_name == "db":
-        share = 25
-        layers = 7
+        share = 50
+        layers = 9
     elif data_name == "ccc":
         share = 100
         layers = 9
@@ -124,5 +124,5 @@ def cal_driver(data_name):
 
 if __name__ == "__main__":
     start_time = datetime.now()
-    cal_driver("adr")
+    cal_driver("db")
     print("Total time running :{}\n".format(datetime.now() - start_time))

@@ -75,6 +75,8 @@ def find_best_train(data_name, model_con, tokenizer,
         train_df = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
     elif data_name == "db":
         train_df = pd.read_csv("data/db.tsv", sep="\t")
+    elif data_name == "db_full":
+        train_df = pd.read_csv("data/db_full.tsv", sep="\t")
     else:
         raise ValueError("data name is not supported.")
     model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
@@ -171,7 +173,7 @@ def main_driver(model_con, tokenizer):
     the driver function for cross validation,
     apply ADReSS best configuration on CCC and DB dataset
     """
-    db = get_db_dataset()
+    db_full = pd.read_csv("data/db_full.tsv", sep="\t")
     ccc = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
     adr_full = pd.read_csv("data/adress_full.tsv", sep="\t")
     # best configuration on full ADReSS dataset
@@ -182,16 +184,16 @@ def main_driver(model_con, tokenizer):
     model_dem = accumu_model_driver(model_dem, share, zero_style, layers)
     sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
     sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
-    train_res, test_res = cross_validation(ccc, db, model_con,
+    train_res, test_res = cross_validation(ccc, db_full, model_con,
                                            model_dem, tokenizer)
     print_table("ccc", train_res)
-    print_table("db", test_res)
+    print_table("db_full", test_res)
     sys.stdout.write("\n")
-    # best configuration on db
+    # best configuration on db full
     sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
     sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
-    share = 25
-    layers = 7
+    share = 50
+    layers = 9
     model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
     model_dem = accumu_model_driver(model_dem, share, zero_style, layers)
     train_res, test_res = cross_validation(adr_full, ccc, model_con,
@@ -207,25 +209,24 @@ def main_driver(model_con, tokenizer):
     layers = 9
     model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
     model_dem = accumu_model_driver(model_dem, share, zero_style, layers)
-    train_res, test_res = cross_validation(adr_full, db, model_con,
+    train_res, test_res = cross_validation(adr_full, db_full, model_con,
                                            model_dem, tokenizer)
     print_table("adr", train_res)
-    print_table("db", test_res)
+    print_table("db_full", test_res)
 
 
 
 if __name__ == "__main__":
     model_con = GPT2LMHeadModel.from_pretrained("gpt2")
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
-    #main_driver(model_con, tokenizer)
-    zero_style = "first"
     '''
+    zero_style = "first"
     for share in (25, 50, 75, 100):
         find_best_train("adr", model_con, tokenizer,
                         share, zero_style)
         find_best_train("ccc", model_con, tokenizer,
                         share, zero_style)
-        find_best_train("db", model_con, tokenizer,
+        find_best_train("db_full", model_con, tokenizer,
                         share, zero_style)
     '''
     main_driver(model_con, tokenizer)
