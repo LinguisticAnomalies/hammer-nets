@@ -250,40 +250,40 @@ def get_pid(prefix_path):
     return pid_frame
 
 
+def str2array(input_str):
+    """
+    transform the read-in str from dataframe to ndarray
+
+    :param input_str: the input str from dataframe
+    :type input_str: str
+    """
+    tr_list = input_str[1:-1].split(" ")
+    tr_list = [item for item in tr_list if item]
+    tr_list = [int(item) for item in tr_list]
+    return tr_list
+
+
 def get_db_dataset():
     """
     get dementia bank dataset with 99 control, 169 dementia cases
+
     """
-    if os.path.exists("data/db.tsv"):
-        db_full = pd.read_csv("data/db.tsv", sep="\t")
-    else:
-        # get DementiaBank dataset
-        prefix_con = "/edata/lixx3013/dementia-data/DementiaBank//DemBank/Control/99/"
-        prefix_dem = "/edata/lixx3013/dementia-data/DementiaBank/DemBank/Dementia/169/"
-        db_con = read_data(prefix_con, "con")
-        db_dem = read_data(prefix_dem, "dem")
-        db_full = db_con.append(db_dem)
-        db_full = db_full.sample(frac=1)
-        # get participant ids for Dementia Bank dataset
-        db_con = "/edata/lixx3013/dementia-data/DementiaBank/DemBank/Control/cookie"
-        con_pid = get_pid(db_con)
-        db_dem = "/edata/lixx3013/dementia-data/DementiaBank/DemBank/Dementia/cookie"
-        dem_pid = get_pid(db_dem)
-        db_pid = con_pid.append(dem_pid)
-        db_full["chat_id"] = db_full["file"].apply(lambda x: x[:5])
-        db_full["id"] = db_full["file"].apply(lambda x: x[:3])
-        db_full = pd.merge(db_full, db_pid, on="chat_id")
-        # add MMSE
-        db_meta_data_file = "/edata/lixx3013/hammer-nets/scripts/data/demantiabank_metadata.csv"
-        db_meta_df = pd.read_csv(db_meta_data_file)
-        db_meta_df['id'] = db_meta_df['id'].astype(str).str.zfill(3)
-        db_full["id"] = db_full["id"].astype(str).str.zfill(3)
-        db_full = pd.merge(db_full, db_meta_df, on='id')
-        db_full = db_full[["text", "label", "chat_id",
-                           "id", "pid", "mms"]]
-        db_full.rename(columns={"id": "file", "mms": "mmse"}, inplace=True)
-        db_full.to_csv("data/db.tsv", sep="\t", index=False)
-    return db_full
+    total_pid = []
+    fold_file = pd.read_csv("db_folds.txt")
+    fold_file["label"] = np.where(fold_file["label"] == "dem", 1, 0)
+    for i in range(5):
+        cur_dem_train = fold_file.loc[(fold_file["fold"] == i) & (fold_file["label"] == 1)]["trainfiles"].values.tolist()[0]
+        cur_con_train = fold_file.loc[(fold_file["fold"] == i) & (fold_file["label"] == 0)]["trainfiles"].values.tolist()[0]
+        cur_dem_test = fold_file.loc[(fold_file["fold"] == i) & (fold_file["label"] == 1)]["testfiles"].values.tolist()[0]
+        cur_con_test = fold_file.loc[(fold_file["fold"] == i) & (fold_file["label"] == 0)]["testfiles"].values.tolist()[0]
+        train_fold = str2array(cur_dem_train) + str2array(cur_con_train)
+        test_fold = str2array(cur_dem_test) + str2array(cur_con_test)
+        total_pid.extend(train_fold)
+        total_pid.extend(test_fold)
+    db = pd.read_csv("data/db_full.tsv", sep="\t")
+    db = db.loc[db["file"].isin(total_pid)]
+    db.to_csv("data/db.tsv", sep="\t", index=False)
+    
 
 def get_dbca_dataset():
     """

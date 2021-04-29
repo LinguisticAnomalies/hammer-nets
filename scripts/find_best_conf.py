@@ -219,14 +219,12 @@ def main_driver(model_con, tokenizer):
 if __name__ == "__main__":
     model_con = GPT2LMHeadModel.from_pretrained("gpt2")
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
-    '''
     zero_style = "first"
     for share in (25, 50, 75, 100):
         find_best_train("adr", model_con, tokenizer,
                         share, zero_style)
         find_best_train("ccc", model_con, tokenizer,
                         share, zero_style)
-        find_best_train("db_full", model_con, tokenizer,
+        find_best_train("db", model_con, tokenizer,
                         share, zero_style)
-    '''
-    main_driver(model_con, tokenizer)
+    #main_driver(model_con, tokenizer)
