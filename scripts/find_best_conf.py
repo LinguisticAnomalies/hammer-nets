@@ -2,19 +2,14 @@
 Find the best configuration on different dataset
 For cumulative method, c/d model only
 '''
-import logging
-import gc
 import sys
-import os
 from datetime import datetime
 import pickle
 import numpy as np
 import pandas as pd
-from torch._C import Value
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from util_fun import evaluate_model, accumu_model_driver
-from util_fun import calculate_metrics, check_folder, check_file
-from util_fun import read_data, get_db_dataset
+from util_fun import calculate_metrics
 
 
 def print_res(res_dict, model_type):
