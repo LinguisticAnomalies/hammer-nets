@@ -66,6 +66,10 @@ def find_best_train(data_name, model_con, tokenizer,
                  "norm_cor":[], "norm_ppl":[]}
     if data_name == "adr":
         train_df = pd.read_csv("data/adress_full.tsv", sep="\t")
+    elif data_name == "adr_train":
+        train_df = pd.read_csv("data/adress_train_full.tsv", sep="\t")
+    elif data_name == "adr_test":
+        train_df = pd.read_csv("data/adress_test_full.tsv", sep="\t")
     elif data_name == "ccc":
         train_df = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
     elif data_name == "db":
@@ -210,16 +214,19 @@ def main_driver(model_con, tokenizer):
     print_table("db_full", test_res)
 
 
-
 if __name__ == "__main__":
     model_con = GPT2LMHeadModel.from_pretrained("gpt2")
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
     zero_style = "first"
-    for share in (25, 50, 75, 100):
-        find_best_train("adr", model_con, tokenizer,
-                        share, zero_style)
-        find_best_train("ccc", model_con, tokenizer,
-                        share, zero_style)
-        find_best_train("db", model_con, tokenizer,
-                        share, zero_style)
+    share = 50
+    find_best_train("adr", model_con, tokenizer,
+                    share, zero_style)
+    find_best_train("adr_train", model_con, tokenizer,
+                    share, zero_style)
+    find_best_train("adr_test", model_con, tokenizer,
+                    share, zero_style)
+    find_best_train("ccc", model_con, tokenizer,
+                    share, zero_style)
+    find_best_train("db", model_con, tokenizer,
+                    share, zero_style)
     #main_driver(model_con, tokenizer)

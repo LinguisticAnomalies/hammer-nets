@@ -13,6 +13,7 @@ from scipy.stats import ttest_ind
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 from util_fun import accumu_model_driver, generate_texts
 from util_fun import get_word_lf, load_word_dist
+from util_fun import break_attn_heads_by_layer
 
 
 
@@ -105,24 +106,39 @@ def cal_driver(data_name):
     bird_sents = sent_tokenize(bird_all)
     if data_name == "adr":
         share = 50
-        layers = 9
+        layers = [0, 1, 2, 3, 4, 5, 6, 8]
     elif data_name == "db":
         share = 50
-        layers = 9
+        layers = [0, 1, 2, 3, 4, 6, 8]
     elif data_name == "ccc":
-        share = 100
-        layers = 9
+        share = 50
+        layers = [1, 2, 3, 5, 7, 9, 10, 11]
     else:
         raise ValueError("wrong data name")
-    model_dem = accumu_model_driver(model_dem, share,
-                                    zero_style, layers)
+    for layer in layers:
+        model_dem = break_attn_heads_by_layer(zero_style, model_dem, 
+                                              share, layer)
     lan_gene = generate_texts(model_con, model_dem,
                               gpt_tokenizer, bird_sents)
+    con_text = lan_gene["control"].values.tolist()
+    dem_text = lan_gene["dementia"].values.tolist()
+    bird_text = lan_gene["sentence"].values.tolist()
+    print(bird_text[0])
+    print("\n")
+    print(con_text[0])
+    print("\n")
+    print(dem_text[0])
+    print("\n")
+    print(bird_text[1])
+    print("\n")
+    print(con_text[1])
+    print("\n")
+    print(dem_text[1])
     con_tokens, dem_tokens = pre_process(lan_gene)
     calculate_lexical_frequency(con_tokens, dem_tokens)
 
 
 if __name__ == "__main__":
     start_time = datetime.now()
-    cal_driver("db")
+    cal_driver("ccc")
     print("Total time running :{}\n".format(datetime.now() - start_time))

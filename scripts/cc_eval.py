@@ -5,7 +5,7 @@ evaluate transcripts with permuted and cumulative methods,
 for cumulative method only
 '''
 
-import logging
+
 import sys
 import os
 import pickle
@@ -13,8 +13,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
-from util_fun import accumu_model_driver
-from util_fun import calculate_metrics, check_folder, check_file
+from util_fun import accumu_model_driver, calculate_metrics
 from util_fun import evaluate_model, get_db_dataset
 
 
@@ -73,6 +72,8 @@ def test(df_full, fold_file, zero_style, share, model_con, tokenizer):
                 "train_ratio_cor":[], "train_ratio_ppl":[],
                 "train_norm_auc":[], "train_norm_accu":[],
                 "train_norm_cor":[], "train_norm_ppl":[],
+                "train_log_auc":[], "train_log_accu":[],
+                "train_log_cor":[], "train_log_ppl":[],
                 "test_con_auc":[], "test_con_accu":[],
                 "test_con_cor":[], "test_con_ppl":[],
                 "test_dem_auc":[], "test_dem_accu":[],
@@ -80,7 +81,9 @@ def test(df_full, fold_file, zero_style, share, model_con, tokenizer):
                 "test_ratio_auc":[], "test_ratio_accu":[],
                 "test_ratio_cor":[], "test_ratio_ppl":[],
                 "test_norm_auc":[], "test_norm_accu":[],
-                "test_norm_cor":[], "test_norm_ppl":[]}
+                "test_norm_cor":[], "test_norm_ppl":[],
+                "test_log_auc":[], "test_log_accu":[],
+                "test_log_cor":[], "test_log_ppl":[]}
     for i in range(5):
         cur_dem_train = fold_file.loc[(fold_file["fold"] == i) & (fold_file["label"] == 1)]["trainfiles"].values.tolist()[0]
         cur_con_train = fold_file.loc[(fold_file["fold"] == i) & (fold_file["label"] == 0)]["trainfiles"].values.tolist()[0]
@@ -101,7 +104,9 @@ def test(df_full, fold_file, zero_style, share, model_con, tokenizer):
                     "ratio_auc": [], "ratio_accu": [],
                     "ratio_cor": [], "ratio_ppl": [],
                     "norm_auc": [], "norm_accu": [],
-                    "norm_cor": [], "norm_ppl": []}
+                    "norm_cor": [], "norm_ppl": [],
+                    "log_auc":[], "log_accu":[],
+                    "log_cor":[], "log_ppl":[]}
         test_res = {"con_auc": [], "con_accu": [],
                     "con_cor": [], "con_ppl": [],
                     "dem_auc": [], "dem_accu": [],
@@ -109,7 +114,9 @@ def test(df_full, fold_file, zero_style, share, model_con, tokenizer):
                     "ratio_auc": [], "ratio_accu": [],
                     "ratio_cor": [], "ratio_ppl": [],
                     "norm_auc": [], "norm_accu": [],
-                    "norm_cor": [], "norm_ppl": []}
+                    "norm_cor": [], "norm_ppl": [],
+                    "log_auc":[], "log_accu":[],
+                    "log_cor":[], "log_ppl":[]}
         # control model evaluation results
         con_res_df = evaluate_model(train_df, model_con, tokenizer)
         con_res_df = con_res_df.groupby(["file", "label", "mmse"])["perplexity"].mean().reset_index()
@@ -199,7 +206,9 @@ def cross_validation(df_full, zero_style, share,
                  "ratio_auc": [], "ratio_accu": [],
                  "ratio_cor": [], "ratio_ppl": [],
                  "norm_auc": [], "norm_accu": [],
-                 "norm_cor": [], "norm_ppl": []}
+                 "norm_cor": [], "norm_ppl": [],
+                 "log_auc":[], "log_accu":[],
+                 "log_cor":[], "log_ppl":[]}
         test_res = {"con_auc": [], "con_accu": [],
                     "con_cor": [], "con_ppl": [],
                     "dem_auc": [], "dem_accu": [],
@@ -207,7 +216,9 @@ def cross_validation(df_full, zero_style, share,
                     "ratio_auc": [], "ratio_accu": [],
                     "ratio_cor": [], "ratio_ppl": [],
                     "norm_auc": [], "norm_accu": [],
-                    "norm_cor": [], "norm_ppl": []}
+                    "norm_cor": [], "norm_ppl": [],
+                    "log_auc":[], "log_accu":[],
+                    "log_cor":[], "log_ppl":[]}
         test_df = df_full[df_full["file"].isin(array)]
         train_df = df_full[~df_full["file"].isin(array)]
         # control model evaluation results
@@ -289,25 +300,13 @@ if __name__ == "__main__":
     #sys.stdout.write("| - | - | - | - | - | - | - | - | - | - |\n")
     zero_style = "first"
     for share in (25, 50, 75, 100):
-        '''
         cv_dict = cross_validation(df_full, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
         print_table("adr", cv_dict, share, zero_style)
         sys.stdout.write("adr, {}, {} finished\n".format(share, zero_style))
         cv_dict = cross_validation(db, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
-        print_table("db", cv_dict, share, zero_style)
-        sys.stdout.write("db, {}, {} finished\n".format(share, zero_style))
+        print_table("db_c", cv_dict, share, zero_style)
+        sys.stdout.write("db, Changye's approach, {}, {} finished\n".format(share, zero_style))
         cv_dict = cross_validation(ccc, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
         print_table("ccc", cv_dict, share, zero_style)
         sys.stdout.write("ccc, {}, {} finished\n".format(share, zero_style))
-        '''
-        # test serguei's code
-        cv_dict = test(db, db_folds, zero_style, share, model_con, gpt_tokenizer)
-        print_table("db_s", cv_dict, share, zero_style)
-        sys.stdout.write("db, serguei's code, {}, {} finished\n".format(share, zero_style))
-        '''
-        # test my code
-        cv_dict = cross_validation(db, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
-        print_table("db_c", cv_dict, share, zero_style)
-        sys.stdout.write("db, my code, {}, {} finished\n".format(share, zero_style))
-        '''
     sys.stdout.write("total running time: {}\n".format(datetime.now()-start_time))

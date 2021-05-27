@@ -22,7 +22,7 @@ from sklearn.metrics import roc_curve, auc
 warnings.filterwarnings('ignore')
 DEVICE = "cuda"
 USE_GPU = True
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 def check_folder(folder_path):
@@ -670,6 +670,17 @@ def calculate_metrics(res_dict, model_dem, tokenizer,
     res_dict["ratio_accu"].append(round(ratio_accu, 3))
     res_dict["ratio_cor"].append(round(ratio_r, 3))
     res_dict["ratio_ppl"].append((np.mean(ratio_ppl)))
+    # log(c)-log(d) AUC, accuracy, cor
+    '''
+    log_ppl = np.log(full_res["con_ppl"])-np.log(full_res["dem_ppl"])
+    log_ppl = log_ppl.values.tolist()
+    log_accu, log_auc = calculate_accuracy(labels, log_ppl)
+    log_r = np.corrcoef(log_ppl, mmse)[1,0]
+    res_dict["log_auc"].append(round(log_auc, 3))
+    res_dict["log_accu"].append(round(log_accu, 3))
+    res_dict["log_cor"].append(round(log_r, 3))
+    res_dict["log_ppl"].append((np.mean(log_ppl)))
+    '''
     # norm ppl diff
     norm_ppl = (np.log(full_res["con_ppl"]) - np.log(full_res["dem_ppl"]))/np.log(full_res["con_ppl"])
     norm_ppl = norm_ppl.values.tolist()
@@ -701,6 +712,7 @@ def break_attn_heads_by_layer(zero_type, model, share, layer):
     :return: the modified model
     :rtype: transformers.modeling_gpt2.GPT2LMHeadModel
     """
+    # zeroing both weights and bias
     head_offsets = [1536, 1536+64, 1536+128, 1536+192, 1536+256,
                     1536+320, 1536+384, 1536+448, 1536+512,
                     1536+576, 1536+640, 1536+704]
@@ -716,19 +728,24 @@ def break_attn_heads_by_layer(zero_type, model, share, layer):
                 for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
                     model.transformer.h[layer].attn.c_attn.weight[row][rnd_index] = \
                         model.transformer.h[layer].attn.c_attn.weight[row][rnd_index].mul(0.0)
+                    model.transformer.h[layer].attn.c_attn.bias[rnd_index] = \
+                        model.transformer.h[layer].attn.c_attn.bias[rnd_index].mul(0.0)
             return model
         elif zero_type == 'first':
             offset = int(batch*(share/100))
             for head in head_offsets:
                 for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
                     model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset] = \
-                        model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset].mul(0)
+                        model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset].mul(0.0)
+                    model.transformer.h[layer].attn.c_attn.bias[head:head+offset] = \
+                        model.transformer.h[layer].attn.c_attn.bias[head:head+offset].mul(0.0)
             return model
         elif zero_type == 'shuffle':
             offset = int(64*(share/100))
             for head in head_offsets:
                 for row in range(0,model.transformer.h[layer].attn.c_attn.weight.size()[0]):
-                    np.random.shuffle(model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset] )
+                    np.random.shuffle(model.transformer.h[layer].attn.c_attn.weight[row][head:head+offset])
+                    np.random.shuffle(model.transformer.h[layer].attn.c_attn.bias[row][head:head+offset])
             return model
         else:
             raise ValueError("zeroing type is not supported!")
