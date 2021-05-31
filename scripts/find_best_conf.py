@@ -55,7 +55,6 @@ def find_best_train(data_name, model_con, tokenizer,
     :param share: the % attention heads to be changed
     :type share: int
     """
-    start_time = datetime.now()
     train_res = {"con_auc": [], "con_accu": [],
                  "con_cor": [], "con_ppl": [],
                  "dem_auc": [], "dem_accu": [],
@@ -90,7 +89,6 @@ def find_best_train(data_name, model_con, tokenizer,
     out_f = "../results/ppl/accumu_{}_{}_{}.pkl".format(data_name, zero_style, share)
     with open(out_f, "wb") as handle:
         pickle.dump(train_res, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    sys.stdout.write("total running time: {}\n".format(datetime.now() - start_time))
         
 
 def cross_validation(base_df, test_df, model_con,
@@ -172,7 +170,7 @@ def main_driver(model_con, tokenizer):
     the driver function for cross validation,
     apply ADReSS best configuration on CCC and DB dataset
     """
-    db_full = pd.read_csv("data/db_full.tsv", sep="\t")
+    db_full = pd.read_csv("data/db.tsv", sep="\t")
     ccc = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
     adr_full = pd.read_csv("data/adress_full.tsv", sep="\t")
     # best configuration on full ADReSS dataset
@@ -186,13 +184,13 @@ def main_driver(model_con, tokenizer):
     train_res, test_res = cross_validation(ccc, db_full, model_con,
                                            model_dem, tokenizer)
     print_table("ccc", train_res)
-    print_table("db_full", test_res)
+    print_table("db", test_res)
     sys.stdout.write("\n")
     # best configuration on db full
     sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
     sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
     share = 50
-    layers = 9
+    layers = 5
     model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
     model_dem = accumu_model_driver(model_dem, share, zero_style, layers)
     train_res, test_res = cross_validation(adr_full, ccc, model_con,
@@ -204,8 +202,8 @@ def main_driver(model_con, tokenizer):
     sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
     sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
     # best configuration on db
-    share = 100
-    layers = 9
+    share = 50
+    layers = 12
     model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
     model_dem = accumu_model_driver(model_dem, share, zero_style, layers)
     train_res, test_res = cross_validation(adr_full, db_full, model_con,
@@ -215,18 +213,23 @@ def main_driver(model_con, tokenizer):
 
 
 if __name__ == "__main__":
+    start_time = datetime.now()
     model_con = GPT2LMHeadModel.from_pretrained("gpt2")
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2", do_lower_case=True)
     zero_style = "first"
-    share = 50
-    find_best_train("adr", model_con, tokenizer,
-                    share, zero_style)
-    find_best_train("adr_train", model_con, tokenizer,
-                    share, zero_style)
-    find_best_train("adr_test", model_con, tokenizer,
-                    share, zero_style)
-    find_best_train("ccc", model_con, tokenizer,
-                    share, zero_style)
-    find_best_train("db", model_con, tokenizer,
-                    share, zero_style)
-    #main_driver(model_con, tokenizer)
+    '''
+    for share in (25, 50, 75, 100):
+        print("share: {}".format(share))
+        find_best_train("adr", model_con, tokenizer,
+                        share, zero_style)
+        find_best_train("adr_train", model_con, tokenizer,
+                        share, zero_style)
+        find_best_train("adr_test", model_con, tokenizer,
+                        share, zero_style)
+        find_best_train("ccc", model_con, tokenizer,
+                        share, zero_style)
+        find_best_train("db", model_con, tokenizer,
+                        share, zero_style)
+    '''
+    main_driver(model_con, tokenizer)
+    sys.stdout.write("total running time: {}\n".format(datetime.now() - start_time))
