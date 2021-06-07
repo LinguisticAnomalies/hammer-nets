@@ -106,13 +106,13 @@ def cal_driver(data_name):
     bird_sents = sent_tokenize(bird_all)
     if data_name == "adr":
         share = 50
-        layers = [0, 1, 2, 3, 4, 5, 6, 8]
+        layers = [0, 1, 2, 3, 4, 5, 6, 7, 8]
     elif data_name == "db":
         share = 50
-        layers = [0, 1, 2, 3, 4, 6, 8]
+        layers = [0, 1, 2, 3, 4, 5]
     elif data_name == "ccc":
         share = 50
-        layers = [1, 2, 3, 5, 7, 9, 10, 11]
+        layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     else:
         raise ValueError("wrong data name")
     for layer in layers:
@@ -120,20 +120,6 @@ def cal_driver(data_name):
                                               share, layer)
     lan_gene = generate_texts(model_con, model_dem,
                               gpt_tokenizer, bird_sents)
-    con_text = lan_gene["control"].values.tolist()
-    dem_text = lan_gene["dementia"].values.tolist()
-    bird_text = lan_gene["sentence"].values.tolist()
-    print(bird_text[0])
-    print("\n")
-    print(con_text[0])
-    print("\n")
-    print(dem_text[0])
-    print("\n")
-    print(bird_text[1])
-    print("\n")
-    print(con_text[1])
-    print("\n")
-    print(dem_text[1])
     con_tokens, dem_tokens = pre_process(lan_gene)
     calculate_lexical_frequency(con_tokens, dem_tokens)
 

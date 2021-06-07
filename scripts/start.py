@@ -78,9 +78,9 @@ if not os.path.exists("data/adress_train_sev.tsv") and \
     train_sev_frame.to_csv("data/adress_train_sev.tsv", index=False, sep="\t")
     test_sev_frame.to_csv("data/adress_test_sev.tsv", index=False, sep="\t")
 # WLS dataset
-process_wls_data()
+# process_wls_data()
 # CCC dataset
 process_ccc()
 # DBCA
-get_dbca_dataset()
+# get_dbca_dataset()
 

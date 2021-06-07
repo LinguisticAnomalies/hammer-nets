@@ -511,7 +511,7 @@ def process_ccc():
     :return: ccc cleaned dataset
     :rtype: pd.DataFrame
     """
-    with open("/edata/dementia_cleaned_withId.pkl", "rb") as f:
+    with open("/edata/dementia_interviewee_only_0527.pkl", "rb") as f:
         df = pickle.load(f)
     df["label"] = np.where(df["dementia"], 1, 0)
     df = df[["ParticipantID", "Transcript", "label"]]

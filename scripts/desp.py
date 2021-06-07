@@ -4,7 +4,6 @@ ADReSS and CCC dataset descriptive stats
 
 import pandas as pd
 from nltk.tokenize import word_tokenize
-from scipy.stats import ttest_ind
 
 
 adr_train = pd.read_csv("data/adress_train_full.tsv", sep="\t")

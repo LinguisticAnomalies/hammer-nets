@@ -288,13 +288,18 @@ if __name__ == "__main__":
     #sys.stdout.write("| - | - | - | - | - | - | - | - | - | - |\n")
     zero_style = "first"
     share = 50
-    cv_dict = cross_validation(df_full, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
-    print_table("adr", cv_dict, share, zero_style)
-    sys.stdout.write("adr, {}, {} finished\n".format(share, zero_style))
-    cv_dict = cross_validation(db, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
-    print_table("db_c", cv_dict, share, zero_style)
-    sys.stdout.write("db, Changye's approach, {}, {} finished\n".format(share, zero_style))
     cv_dict = cross_validation(ccc, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
     print_table("ccc", cv_dict, share, zero_style)
-    sys.stdout.write("ccc, {}, {} finished\n".format(share, zero_style))
+    '''
+    for share in (25, 50, 75, 100):
+        cv_dict = cross_validation(df_full, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
+        print_table("adr", cv_dict, share, zero_style)
+        sys.stdout.write("adr, {}, {} finished\n".format(share, zero_style))
+        cv_dict = cross_validation(db, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
+        print_table("db_c", cv_dict, share, zero_style)
+        sys.stdout.write("db, Changye's approach, {}, {} finished\n".format(share, zero_style))
+        cv_dict = cross_validation(ccc, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
+        print_table("ccc", cv_dict, share, zero_style)
+        sys.stdout.write("ccc, {}, {} finished\n".format(share, zero_style))
+    '''
     sys.stdout.write("total running time: {}\n".format(datetime.now()-start_time))

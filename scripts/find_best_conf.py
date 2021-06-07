@@ -173,6 +173,8 @@ def main_driver(model_con, tokenizer):
     db_full = pd.read_csv("data/db.tsv", sep="\t")
     ccc = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
     adr_full = pd.read_csv("data/adress_full.tsv", sep="\t")
+    adr_train = pd.read_csv("data/adress_train_full.tsv", sep="\t")
+    adr_test = pd.read_csv("data/adress_test_full.tsv", sep="\t")
     # best configuration on full ADReSS dataset
     zero_style = "first"
     share = 50
@@ -185,31 +187,14 @@ def main_driver(model_con, tokenizer):
                                            model_dem, tokenizer)
     print_table("ccc", train_res)
     print_table("db", test_res)
-    sys.stdout.write("\n")
-    # best configuration on db full
-    sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
-    sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
-    share = 50
-    layers = 5
-    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
-    model_dem = accumu_model_driver(model_dem, share, zero_style, layers)
-    train_res, test_res = cross_validation(adr_full, ccc, model_con,
+    train_res, test_res = cross_validation(adr_train, adr_test, model_con,
                                            model_dem, tokenizer)
-    print_table("adr", train_res)
-    print_table("ccc", test_res)
-    # best configuration on ccc
-    sys.stdout.write("\n")
-    sys.stdout.write("| dataset | mmse (control/dementia)| con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
-    sys.stdout.write("| - | - | - | - | - | - | - | - | - | - | - |\n")
-    # best configuration on db
-    share = 50
-    layers = 12
-    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
-    model_dem = accumu_model_driver(model_dem, share, zero_style, layers)
-    train_res, test_res = cross_validation(adr_full, db_full, model_con,
+    print_table("adr_train", train_res)
+    print_table("adr_test", test_res)
+    train_res, test_res = cross_validation(adr_full, adr_test, model_con,
                                            model_dem, tokenizer)
-    print_table("adr", train_res)
-    print_table("db_full", test_res)
+    print_table("adr_full", train_res)
+    sys.stdout.write("\n")
 
 
 if __name__ == "__main__":
