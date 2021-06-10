@@ -106,13 +106,13 @@ def cal_driver(data_name):
     bird_sents = sent_tokenize(bird_all)
     if data_name == "adr":
         share = 50
-        layers = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        layers = list(range(9))
     elif data_name == "db":
         share = 50
-        layers = [0, 1, 2, 3, 4, 5]
+        layers = list(range(5))
     elif data_name == "ccc":
         share = 50
-        layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        layers = list(range(3))
     else:
         raise ValueError("wrong data name")
     for layer in layers:
@@ -126,5 +126,5 @@ def cal_driver(data_name):
 
 if __name__ == "__main__":
     start_time = datetime.now()
-    cal_driver("ccc")
+    cal_driver("adr")
     print("Total time running :{}\n".format(datetime.now() - start_time))

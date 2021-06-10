@@ -187,13 +187,23 @@ def main_driver(model_con, tokenizer):
                                            model_dem, tokenizer)
     print_table("ccc", train_res)
     print_table("db", test_res)
-    train_res, test_res = cross_validation(adr_train, adr_test, model_con,
+    share = 50
+    layers = 5
+    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
+    model_dem = accumu_model_driver(model_dem, share, zero_style, layers)
+    train_res, test_res = cross_validation(adr_full, ccc, model_con,
                                            model_dem, tokenizer)
-    print_table("adr_train", train_res)
-    print_table("adr_test", test_res)
-    train_res, test_res = cross_validation(adr_full, adr_test, model_con,
+    print_table("adr", train_res)
+    print_table("ccc", test_res)
+    sys.stdout.write("\n")
+    share = 50
+    layers = 3
+    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
+    model_dem = accumu_model_driver(model_dem, share, zero_style, layers)
+    train_res, test_res = cross_validation(adr_full, db_full, model_con,
                                            model_dem, tokenizer)
-    print_table("adr_full", train_res)
+    print_table("adr", train_res)
+    print_table("db", test_res)
     sys.stdout.write("\n")
 
 

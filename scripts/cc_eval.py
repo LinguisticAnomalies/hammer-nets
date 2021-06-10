@@ -287,6 +287,7 @@ if __name__ == "__main__":
     #sys.stdout.write("| dataset | con AUC (SD)| con ACC (SD) | con r with MMSE (SD)| dem AUC (SD)| dem ACC (SD) | dem r with MMSE (SD)| ratio AUC (SD)| ratio ACC (SD) | ratio r with MMSE (SD)|\n")
     #sys.stdout.write("| - | - | - | - | - | - | - | - | - | - |\n")
     zero_style = "first"
+    '''
     share = 50
     cv_dict = cross_validation(ccc, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
     print_table("ccc", cv_dict, share, zero_style)
@@ -301,5 +302,4 @@ if __name__ == "__main__":
         cv_dict = cross_validation(ccc, zero_style, share, CV_FOLD, model_con, gpt_tokenizer)
         print_table("ccc", cv_dict, share, zero_style)
         sys.stdout.write("ccc, {}, {} finished\n".format(share, zero_style))
-    '''
     sys.stdout.write("total running time: {}\n".format(datetime.now()-start_time))
