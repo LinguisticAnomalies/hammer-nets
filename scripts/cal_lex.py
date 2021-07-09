@@ -87,7 +87,7 @@ def calculate_lexical_frequency(con_tokens, dem_tokens):
     print("control model unique word ratio: {:0.2f}".format(len(set(con_tokens))/len(con_tokens)))
     print("dementia model unique word ratio: {:0.2f}".format(len(set(dem_tokens))/len(dem_tokens)))
     # if p<0.05 -> significant difference between two samples
-    print("t-test p-value: {:0.3f}".format(ttest_ind(con_lf, dem_lf, alternative="less")[1]))
+    print("t-test p-value: {:0.3f}".format(ttest_ind(con_lf, dem_lf, equal_var=False)[1]))
 
 
 def cal_driver(data_name):
@@ -113,6 +113,9 @@ def cal_driver(data_name):
     elif data_name == "ccc":
         share = 50
         layers = list(range(3))
+    elif data_name =="afpd":
+        share = 50
+        layers = list(range(1))
     else:
         raise ValueError("wrong data name")
     for layer in layers:
@@ -124,7 +127,48 @@ def cal_driver(data_name):
     calculate_lexical_frequency(con_tokens, dem_tokens)
 
 
+def child_talk_cv():
+    """
+    cross validate language behavior between gillam and ccc dataset
+    """
+    childres = pd.read_csv("data/gillam_normal.tsv", sep="\t")
+    ccc = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
+    ccc_dem = ccc.loc[ccc["label"] == 1]
+    ccc_con = ccc.loc[ccc["label"] == 0]
+    # pre-process
+    childres_text = " ".join(childres["text"].values.tolist()).lower()
+    ccc_text = " ".join(ccc_dem["text"].values.tolist()).lower()
+    childres_tokens = word_tokenize(childres_text)
+    ccc_tokens = word_tokenize(ccc_text)
+    childres_tokens = [token for token in childres_tokens if token not in string.punctuation]
+    ccc_tokens = [token for token in ccc_tokens if token not in string.punctuation]
+    stop_words = stopwords.words("english")
+    stop_words.append("n't")
+    # add words starting with '
+    con_temp = [token for token in childres_tokens if token.startswith("'")]
+    stop_words.extend(con_temp)
+    dem_temp = [token for token in ccc_tokens if token.startswith("'")]
+    stop_words.extend(dem_temp)
+    tagged = pos_tag(childres_tokens)
+    for item in tagged:
+        tag = item[1]
+        token = item[0]
+        if tag in ("PRP", "PRP$", "WP$", "EX"):
+            stop_words.append(token)
+    tagged = pos_tag(ccc_tokens)
+    for item in tagged:
+        tag = item[1]
+        token = item[0]
+        if tag in ("PRP", "PRP$", "WP$", "EX"):
+            stop_words.append(token)
+    childres_tokens = [token for token in childres_tokens if token not in stop_words]
+    ccc_tokens = [token for token in ccc_tokens if token not in stop_words]
+    calculate_lexical_frequency(childres_tokens, ccc_tokens)
+
+
+
 if __name__ == "__main__":
     start_time = datetime.now()
-    cal_driver("adr")
+    #cal_driver("afpd")
+    child_talk_cv()
     print("Total time running :{}\n".format(datetime.now() - start_time))

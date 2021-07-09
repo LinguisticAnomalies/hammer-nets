@@ -15,14 +15,13 @@ import pandas as pd
 import numpy as np
 import torch
 from nltk.probability import FreqDist
-from nltk.tokenize import sent_tokenize
 from sklearn.metrics import roc_curve, auc
 
 
 warnings.filterwarnings('ignore')
 DEVICE = "cuda"
 USE_GPU = True
-#os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 def check_folder(folder_path):
