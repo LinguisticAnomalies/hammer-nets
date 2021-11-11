@@ -23,7 +23,7 @@ from sklearn.metrics import auc, roc_curve
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 RANDOM_SEED = 42
-EPOCHS = 5
+EPOCHS = 10
 NUM_LABELS = 2
 BATCH_SIZE = 8
 
@@ -152,7 +152,7 @@ def set_dataloader(input_ids, attn_masks, label):
 def fine_tune_process(data_loader, val_dataloader, model):
     """
     the actual fine tuning process,
-    return the training stats
+    return the fine-tuned model
 
     :param data_loader: the data loader from training set
     :type data_loader: torch.utils.data.dataloader.DataLoader
@@ -160,8 +160,8 @@ def fine_tune_process(data_loader, val_dataloader, model):
     :type val_dataloader: torch.utils.data.dataloader.DataLoader
     :param model: the pre-trained model
     :type model: transformers.models.bert.modeling_bert.BertForSequenceClassification
-    :return: the training stats for further investigation
-    :rtype: list
+    :return: the fine-tuned model
+    :rtype: transformers.models.bert.modeling_bert.BertForSequenceClassification
     """
     # to use the second GPU
     # torch.cuda.set_device(1)
@@ -218,60 +218,65 @@ def fine_tune_process(data_loader, val_dataloader, model):
             "  Average training loss: {0:.2f}\n".format(avg_loss))
         sys.stdout.write(
             "  Training epcoh took: {:}\n".format(run_time))
-        ######################################
-        # validation
-        ######################################
-        sys.stdout.write("\n")
-        sys.stdout.write("Running Validation...\n")
-        t0 = time.time()
-        # set to prediciton mode
-        model.eval()
-        total_eval_accuracy = 0.0
-        total_eval_auc = 0.0
-        total_eval_loss = 0.0
-        for batch in val_dataloader:
-            b_input_ids = batch[0].to(DEVICE)
-            b_input_mask = batch[1].to(DEVICE)
-            b_labels = batch[2].to(DEVICE)
-            # no forward pass
-            with torch.no_grad():
-                outputs = model(
-                    b_input_ids, 
-                    token_type_ids=None, 
-                    attention_mask=b_input_mask, 
-                    labels=b_labels)
-                loss = outputs[0]
-                logits = outputs[1]
-                total_eval_loss += loss.item()
-                # move things to CPU for accuracy calculation
-                logits = logits.detach().cpu().numpy()
-                label_ids = b_labels.to("cpu").numpy()
-                total_eval_accuracy += flat_accuracy(
-                    logits, label_ids)
-                total_eval_auc += flat_auc(
-                    logits, label_ids)
-        # final accuracy & auc
-        avg_val_accuracy = total_eval_accuracy/len(val_dataloader)
-        sys.stdout.write(
-            "  Accuracy: {0:.2f}\n".format(avg_val_accuracy))
-        avg_val_auc = total_eval_auc/len(val_dataloader)
-        sys.stdout.write(
-            "  AUC: {0:.2f}\n".format(avg_val_auc))
-        # calculate the average loss over all of the batches.
-        avg_val_loss = total_eval_loss/len(val_dataloader)
-        # measure how long the validation run took.
-        validation_time = format_time(time.time() - t0)
-        sys.stdout.write(
-            "  Validation Loss: {0:.2f}\n".format(
-                avg_val_loss))
-        sys.stdout.write(
-            "  Validation took: {:}\n".format(
-                validation_time))
-    sys.stdout.write("\n")
-    sys.stdout.write("Training complete!\n")
     sys.stdout.write(
         "Total training took {:} (h:mm:ss)\n".format(
             format_time(time.time()-total_t0)))
+    sys.stdout.write("Training complete!\n")
+    return model
+
+
+def val_process(model_ft, val_dataloader):
+    ######################################
+    # validation
+    ######################################
+    sys.stdout.write("\n")
+    sys.stdout.write("Running Validation...\n")
+    t0 = time.time()
+    # set to prediciton mode
+    model_ft.eval()
+    total_eval_accuracy = 0.0
+    total_eval_auc = 0.0
+    total_eval_loss = 0.0
+    for batch in val_dataloader:
+        b_input_ids = batch[0].to(DEVICE)
+        b_input_mask = batch[1].to(DEVICE)
+        b_labels = batch[2].to(DEVICE)
+        # no forward pass
+        with torch.no_grad():
+            outputs = model_ft(
+                b_input_ids, 
+                token_type_ids=None, 
+                attention_mask=b_input_mask, 
+                labels=b_labels)
+            loss = outputs[0]
+            logits = outputs[1]
+            total_eval_loss += loss.item()
+            # move things to CPU for accuracy calculation
+            logits = logits.detach().cpu().numpy()
+            label_ids = b_labels.to("cpu").numpy()
+            total_eval_accuracy += flat_accuracy(
+                logits, label_ids)
+            total_eval_auc += flat_auc(
+                logits, label_ids)
+    # final accuracy & auc
+    avg_val_accuracy = total_eval_accuracy/len(val_dataloader)
+    sys.stdout.write(
+        "  Accuracy: {0:.2f}\n".format(avg_val_accuracy))
+    avg_val_auc = total_eval_auc/len(val_dataloader)
+    sys.stdout.write(
+        "  AUC: {0:.2f}\n".format(avg_val_auc))
+    # calculate the average loss over all of the batches.
+    avg_val_loss = total_eval_loss/len(val_dataloader)
+    # measure how long the validation run took.
+    validation_time = format_time(time.time() - t0)
+    sys.stdout.write(
+        "  Validation Loss: {0:.2f}\n".format(
+            avg_val_loss))
+    sys.stdout.write(
+        "  Validation took: {:}\n".format(
+            validation_time))
+    sys.stdout.write("\n")
+    sys.stdout.write("Validation complete!\n")
 
 
 def fine_tune_driver(df_to_train, df_to_val, model_chose):
@@ -330,8 +335,9 @@ def fine_tune_driver(df_to_train, df_to_val, model_chose):
         val_trans, tokenizer, max_len)
     val_loader = set_dataloader(
         val_input_ids, val_attn_masks, val_labels)
-    fine_tune_process(
+    model_ft = fine_tune_process(
         train_loader, val_loader, model)
+    val_process(model_ft, val_loader)
 
 
 if __name__ == '__main__':
@@ -362,9 +368,16 @@ if __name__ == '__main__':
     sys.stdout.write("Fine tuning on DB, Validating on CCC\n")
     fine_tune_driver(db_df, ccc_df, args.model)
     sys.stdout.write("################################\n")
+    sys.stdout.write("Fine tuning on DB, Validating on ADReSS full\n")
+    fine_tune_driver(db_df, adr_full, args.model)
+    sys.stdout.write("################################\n")
     sys.stdout.write("################################\n")
     sys.stdout.write("Fine tuning on CCC, Validating on DB\n")
     fine_tune_driver(ccc_df, db_df, args.model)
+    sys.stdout.write("################################\n")
+    sys.stdout.write("################################\n")
+    sys.stdout.write("Fine tuning on CCC, Validating on ADReSS full\n")
+    fine_tune_driver(ccc_df, adr_full, args.model)
     sys.stdout.write("################################\n")
     sys.stdout.write("################################\n")
     sys.stdout.write("Fine tuning on ADR train, Validating on ADR test\n")
