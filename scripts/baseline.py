@@ -1,6 +1,7 @@
 '''
 This script is to fine-tune Longformer model and cross-validate on dataset from another domain/task
 '''
+import os
 import argparse
 import sys
 import logging
@@ -8,6 +9,7 @@ import time
 import datetime
 import numpy as np
 import torch
+import torch.nn.functional as F
 import pandas as pd
 from torch.utils.data import TensorDataset
 from torch.utils.data.dataloader import DataLoader
@@ -16,9 +18,10 @@ from transformers import BertForSequenceClassification
 from transformers import BertTokenizer
 from transformers import LongformerForSequenceClassification
 from transformers import LongformerTokenizer
+from transformers import AutoModelForSequenceClassification
 from transformers import AdamW
 from transformers import get_linear_schedule_with_warmup
-from sklearn.metrics import auc, roc_curve
+from sklearn.metrics import auc, roc_curve, accuracy_score
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -29,6 +32,9 @@ BATCH_SIZE = 8
 
 
 def parse_args():
+    """
+    add arguments
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str,
                         help="""the choice of model""")
@@ -47,7 +53,6 @@ def format_time(elapsed):
     """
     # Round to the nearest second.
     elapsed_rounded = int(round((elapsed)))
-    
     # Format as hh:mm:ss
     return str(datetime.timedelta(seconds=elapsed_rounded))
 
@@ -55,7 +60,7 @@ def format_time(elapsed):
 def set_seed(i):
     """
     set all possible seed to RANDOM_SEED
-    
+
     :param i: the i-th run
     :type i: int
     """
@@ -64,37 +69,48 @@ def set_seed(i):
     torch.cuda.manual_seed_all(RANDOM_SEED+i)
 
 
-def flat_accuracy(preds, labels):
+def calculate_flat_rate(labels, preds):
     """
-    calculate the accuracy based on precitions
+    calcualte AUC and accuracy at flat rate,
+    return AUC and accuracy
 
-    :param preds: the predictions made by fine-tuned model
-    :type preds: torch.Tensor
-    :param labels: the actual labels
-    :type labels: torch.Tensor
-    :return: the accuracy
+    :param labels: a list of true label
+    :type labels: list
+    :param preds: a list of prediction
+    :type preds: list
+    :return: the ACC & AUC at flat level
     :rtype: float
     """
-    pred_flat = np.argmax(preds, axis=1).flatten()
-    labels_flat = labels.flatten()
-    return np.sum(pred_flat == labels_flat)/len(labels_flat)
+    fpr, tpr, _ = roc_curve(labels, preds)
+    flat_auc = auc(fpr, tpr)
+    flat_acc = accuracy_score(labels, preds)
+    pred_df = pd.DataFrame({"pred": preds, "label": labels})
+    pred_df.to_csv("pred_df.csv", index=False)
+    return flat_acc, flat_auc
 
 
-def flat_auc(preds, labels):
+def calculate_eer_rate(labels, probs):
     """
-    calculate the AUC based on predictions
+    calculate AUC and accuracy at EER
 
-    :param preds: the predictions made by fine-tuned model
-    :type preds: torch.Tensor
-    :param labels: the actual labels
-    :type labels: torch.Tensor
-    :return: the accuracy
+    :param labels: a list of true label
+    :type labels: list
+    :param probs: a list of probalities represents the probability of being 1s
+    :type preds: list
+    :return: the ACC & AUC at flat level
     :rtype: float
     """
-    pred_flat = np.argmax(preds, axis=1).flatten()
-    labels_flat = labels.flatten()
-    fpr, tpr, _ = roc_curve(labels_flat, pred_flat)
-    return auc(fpr, tpr)
+    fpr, tpr, _ = roc_curve(labels, probs)
+    eer_auc = auc(fpr, tpr)
+    fnr = 1 - tpr
+    tnr = 1 - fpr
+    prevalence = np.count_nonzero(labels)/len(labels)
+    eer_point = np.nanargmin(np.absolute((fnr - fpr)))
+    tpr_at_eer = tpr[eer_point]
+    tnr_at_eer = tnr[eer_point]
+    # flat accuracy and AUC
+    eer_acc = tpr_at_eer * prevalence + tnr_at_eer * (1-prevalence)
+    return eer_acc, eer_auc
 
 
 def format_input(trans, tokenizer, max_len):
@@ -149,19 +165,17 @@ def set_dataloader(input_ids, attn_masks, label):
     return df_dataloader
 
 
-def fine_tune_process(data_loader, val_dataloader, model):
+def fine_tune_process(data_loader, model, save_name):
     """
     the actual fine tuning process,
     return the fine-tuned model
 
     :param data_loader: the data loader from training set
     :type data_loader: torch.utils.data.dataloader.DataLoader
-    :param data_loader: the data loader from validation set
-    :type val_dataloader: torch.utils.data.dataloader.DataLoader
-    :param model: the pre-trained model
-    :type model: transformers.models.bert.modeling_bert.BertForSequenceClassification
-    :return: the fine-tuned model
-    :rtype: transformers.models.bert.modeling_bert.BertForSequenceClassification
+    :param model: the fine-tuned model
+    :type model: transformers.AutoModelForSequenceClassification
+    :param save_name: the relative name to save the fine-tuned model
+    :type save_name: str
     """
     # to use the second GPU
     # torch.cuda.set_device(1)
@@ -172,7 +186,7 @@ def fine_tune_process(data_loader, val_dataloader, model):
         num_training_steps=len(data_loader)*EPOCHS)
     for epoch_i in range(0, EPOCHS):
         #########################################
-        # training 
+        # training
         #########################################
         model.train()
         set_seed(epoch_i)
@@ -197,9 +211,9 @@ def fine_tune_process(data_loader, val_dataloader, model):
             model.zero_grad()
             # forward pass
             outputs = model(
-                b_input_ids, 
-                token_type_ids=None, 
-                attention_mask=b_input_mask, 
+                b_input_ids,
+                token_type_ids=None,
+                attention_mask=b_input_mask,
                 labels=b_labels)
             loss = outputs[0]
             # add trainign loss
@@ -222,20 +236,34 @@ def fine_tune_process(data_loader, val_dataloader, model):
         "Total training took {:} (h:mm:ss)\n".format(
             format_time(time.time()-total_t0)))
     sys.stdout.write("Training complete!\n")
-    return model
+    # check if fine_tuned folder exists
+    sys.stdout.write("Saving model as {}\n".format(save_name))
+    if not os.path.isdir("../fine_tuned/"):
+        os.mkdir("../fine_tuned/")
+    model.save_pretrained(os.path.join("../fine_tuned/", save_name))
 
 
-def val_process(model_ft, val_dataloader):
+def val_process(val_dataloader, model_ft):
+    """
+    the validation process,
+    calculate accuracy and AUC at equal error rate
+
+    :param val_dataloader: the validation data loader
+    :type val_dataloader: torch.utils.data.dataloader.DataLoader
+    :param model_ft: the fine-tuned model
+    :type model: transformers.AutoModelForSequenceClassification
+    """
     ######################################
     # validation
     ######################################
+    preds = []
+    labels = []
+    probs = []
     sys.stdout.write("\n")
     sys.stdout.write("Running Validation...\n")
     t0 = time.time()
     # set to prediciton mode
     model_ft.eval()
-    total_eval_accuracy = 0.0
-    total_eval_auc = 0.0
     total_eval_loss = 0.0
     for batch in val_dataloader:
         b_input_ids = batch[0].to(DEVICE)
@@ -244,27 +272,38 @@ def val_process(model_ft, val_dataloader):
         # no forward pass
         with torch.no_grad():
             outputs = model_ft(
-                b_input_ids, 
-                token_type_ids=None, 
-                attention_mask=b_input_mask, 
+                b_input_ids,
+                token_type_ids=None,
+                attention_mask=b_input_mask,
                 labels=b_labels)
             loss = outputs[0]
             logits = outputs[1]
             total_eval_loss += loss.item()
             # move things to CPU for accuracy calculation
+            prob = F.softmax(logits.detach().cpu(), dim=-1)
+            # get the second column from probablities for metrics@EER
+            for v in prob:
+                probs.append(v.data[1].numpy())
             logits = logits.detach().cpu().numpy()
             label_ids = b_labels.to("cpu").numpy()
-            total_eval_accuracy += flat_accuracy(
-                logits, label_ids)
-            total_eval_auc += flat_auc(
-                logits, label_ids)
-    # final accuracy & auc
-    avg_val_accuracy = total_eval_accuracy/len(val_dataloader)
+            # get the actual preditions
+            pred_flat = np.argmax(logits, axis=1).flatten()
+            labels_flat = label_ids.flatten()
+            # add to the total list
+            preds.extend(pred_flat)
+            labels.extend(labels_flat)
+    # accuracy and AUC at equal error rate
+    eer_acc, eer_auc = calculate_eer_rate(labels, probs)
+    flat_acc, flat_auc = calculate_flat_rate(labels, preds, )
     sys.stdout.write(
-        "  Accuracy: {0:.2f}\n".format(avg_val_accuracy))
-    avg_val_auc = total_eval_auc/len(val_dataloader)
+        "  Accuracy@flat: {0:.2f}\n".format(flat_acc))
     sys.stdout.write(
-        "  AUC: {0:.2f}\n".format(avg_val_auc))
+        "  AUC@flat: {0:.2f}\n".format(flat_auc))
+    sys.stdout.write("--------\n")
+    sys.stdout.write(
+        "  Accuracy@EER: {0:.2f}\n".format(eer_acc))
+    sys.stdout.write(
+        "  AUC@EER: {0:.2f}\n".format(eer_auc))
     # calculate the average loss over all of the batches.
     avg_val_loss = total_eval_loss/len(val_dataloader)
     # measure how long the validation run took.
@@ -279,7 +318,7 @@ def val_process(model_ft, val_dataloader):
     sys.stdout.write("Validation complete!\n")
 
 
-def fine_tune_driver(df_to_train, df_to_val, model_chose):
+def fine_tune_driver(df_to_train, df_to_val, model_chose, ft_model_name):
     """
     fine tune Longformer on df_to_train and evalute on df_to_val,
     ignore all characters after 4,096
@@ -290,6 +329,8 @@ def fine_tune_driver(df_to_train, df_to_val, model_chose):
     :type df_to_val: pd.DataFrame
     :param model_chose: the model choise
     :type model_chose: str
+    :param ft_model_name: the name of fine-tuned model
+    :type: str
     """
     torch.device(DEVICE)
     if model_chose == "bert":
@@ -312,7 +353,7 @@ def fine_tune_driver(df_to_train, df_to_val, model_chose):
             output_attentions = False,
             output_hidden_states = False)
         sys.stdout.write("Loading Longformer tokenizer...\n")
-        tokenizer = tokenizer = LongformerTokenizer.from_pretrained(
+        tokenizer = LongformerTokenizer.from_pretrained(
             'allenai/longformer-base-4096', do_lower_case=True)
     else:
         raise ValueError("Model type is not supported")
@@ -335,12 +376,19 @@ def fine_tune_driver(df_to_train, df_to_val, model_chose):
         val_trans, tokenizer, max_len)
     val_loader = set_dataloader(
         val_input_ids, val_attn_masks, val_labels)
-    model_ft = fine_tune_process(
-        train_loader, val_loader, model)
-    val_process(model_ft, val_loader)
+    ft_path = os.path.join("../fine_tuned/", ft_model_name)
+    if not os.path.exists(ft_path):
+        fine_tune_process(train_loader, model, ft_model_name)
+    sys.stdout.write("Loading fine-tuned model...\n")
+    model_ft = AutoModelForSequenceClassification.from_pretrained(ft_path)
+    val_process(val_loader, model_ft)
 
 
-if __name__ == '__main__':
+def cross_validate_process():
+    """
+    the final process of fine-tuning and validating process
+    """
+    start_time = datetime.datetime.now()
     args = parse_args()
     # to change GPU usage
     # run the following command on terminal
@@ -358,37 +406,45 @@ if __name__ == '__main__':
     db_df = pd.read_csv("data/db.tsv", sep="\t")
     db_df["label"] = db_df["label"].astype(int)
     ccc_df = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
-    adr_train = pd.read_csv("data/adress_train_full.tsv", sep="\t")
-    adr_test = pd.read_csv("data/adress_test_full.tsv", sep="\t")
-    adr_train["label"] = adr_train["label"].astype(int)
-    adr_test["label"] = adr_test["label"].astype(int)
     adr_full = pd.read_csv("data/adress_full.tsv", sep="\t")
     adr_full["label"] = adr_full["label"].astype(int)
-    sys.stdout.write("################################\n")
-    sys.stdout.write("Fine tuning on DB, Validating on CCC\n")
-    fine_tune_driver(db_df, ccc_df, args.model)
-    sys.stdout.write("################################\n")
-    sys.stdout.write("Fine tuning on DB, Validating on ADReSS full\n")
-    fine_tune_driver(db_df, adr_full, args.model)
-    sys.stdout.write("################################\n")
-    sys.stdout.write("################################\n")
-    sys.stdout.write("Fine tuning on CCC, Validating on DB\n")
-    fine_tune_driver(ccc_df, db_df, args.model)
-    sys.stdout.write("################################\n")
-    sys.stdout.write("################################\n")
-    sys.stdout.write("Fine tuning on CCC, Validating on ADReSS full\n")
-    fine_tune_driver(ccc_df, adr_full, args.model)
-    sys.stdout.write("################################\n")
-    sys.stdout.write("################################\n")
-    sys.stdout.write("Fine tuning on ADR train, Validating on ADR test\n")
-    fine_tune_driver(adr_train, adr_test, args.model)
+    # merge multiple transcripts belong to single participants
+    db_df = db_df.groupby(["file", "label"])["text"].apply(
+        lambda x: " ".join(x)).reset_index()
+    ccc_df = ccc_df.groupby(["file", "label"])["text"].apply(
+        lambda x: " ".join(x)).reset_index()
     sys.stdout.write("################################\n")
     sys.stdout.write("################################\n")
     sys.stdout.write("Fine tuning on ADR full, Validating on DB\n")
-    fine_tune_driver(adr_full, db_df, args.model)
+    fine_tune_driver(
+        adr_full, db_df, args.model, "adr_" + args.model)
     sys.stdout.write("################################\n")
     sys.stdout.write("################################\n")
     sys.stdout.write("Fine tuning on ADR full, Validating on CCC\n")
-    fine_tune_driver(adr_full, ccc_df, args.model)
+    fine_tune_driver(
+        adr_full, ccc_df, args.model, "adr_" + args.model)
     sys.stdout.write("################################\n")
+    sys.stdout.write("Fine tuning on DB, Validating on ADReSS full\n")
+    fine_tune_driver(
+        db_df, adr_full, args.model, "db_" + args.model)
+    sys.stdout.write("################################\n")
+    sys.stdout.write("################################\n")
+    sys.stdout.write("Fine tuning on DB, Validating on CCC\n")
+    fine_tune_driver(
+        db_df, ccc_df, args.model, "db_" + args.model)
+    sys.stdout.write("################################\n")
+    sys.stdout.write("################################\n")
+    sys.stdout.write("Fine tuning on CCC, Validating on ADReSS full\n")
+    fine_tune_driver(
+        ccc_df, adr_full, args.model, "ccc_" + args.model)
+    sys.stdout.write("################################\n")
+    sys.stdout.write("################################\n")
+    sys.stdout.write("Fine tuning on CCC, Validating on DB\n")
+    fine_tune_driver(
+        ccc_df, db_df, args.model, "ccc_" + args.model)
+    sys.stdout.write("Total running time: {}\n".format(datetime.datetime.now()-start_time))
     log.close()
+
+
+if __name__ == '__main__':
+    cross_validate_process()
