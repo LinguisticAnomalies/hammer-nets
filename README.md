@@ -1,4 +1,7 @@
-This repo contains codes and scripts for GPT-D paper
+How about this for the README:
+This repository contains code developed for the paper entitled "GPT-D: Inducing Dementia-related Linguistic Anomalies by DeliberateDegradation of Artificial Neural Language Models"
+
+NOTE ON DATA: While the data used in this paper are publicly available, we are not able to redistribute any of these data as per Data Use agreement with Dementia Bank and the Carolinas Conversations Collection. In order to obtain these data, individual investigators need to contact the [Dementia Bank](https://dementia.talkbank.org/access/) and [CCC](https://carolinaconversations.musc.edu/ccc/help/access) and request access to the data.
 
 ## Folders
 
