@@ -76,7 +76,7 @@ def calculate_flat_rate(labels, preds):
 
     :param labels: a list of true label
     :type labels: list
-    :param preds: a list of prediction
+    :param preds: a list of prediction of 1s and 0s
     :type preds: list
     :return: the ACC & AUC at flat level
     :rtype: float
@@ -84,8 +84,6 @@ def calculate_flat_rate(labels, preds):
     fpr, tpr, _ = roc_curve(labels, preds)
     flat_auc = auc(fpr, tpr)
     flat_acc = accuracy_score(labels, preds)
-    pred_df = pd.DataFrame({"pred": preds, "label": labels})
-    pred_df.to_csv("pred_df.csv", index=False)
     return flat_acc, flat_auc
 
 
@@ -108,7 +106,7 @@ def calculate_eer_rate(labels, probs):
     eer_point = np.nanargmin(np.absolute((fnr - fpr)))
     tpr_at_eer = tpr[eer_point]
     tnr_at_eer = tnr[eer_point]
-    # flat accuracy and AUC
+    # accuracy and AUC @EER
     eer_acc = tpr_at_eer * prevalence + tnr_at_eer * (1-prevalence)
     return eer_acc, eer_auc
 
