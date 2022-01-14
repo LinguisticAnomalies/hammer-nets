@@ -11,7 +11,7 @@ from nltk.tokenize import sent_tokenize
 from nltk.corpus import stopwords
 from scipy.stats import ttest_ind
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
-from util_fun import accumu_model_driver, generate_texts
+from util_fun import generate_texts
 from util_fun import get_word_lf, load_word_dist
 from util_fun import break_attn_heads_by_layer
 
@@ -78,14 +78,19 @@ def calculate_lexical_frequency(con_tokens, dem_tokens):
     :type dem_tokens: list
     """
     word_dist = load_word_dist()
+    # calculate the occurrence of negative infinity
     con_lf = [get_word_lf(token, word_dist) for token in con_tokens]
-    con_lf = [token for token in con_lf if token != -np.inf]
+    con_ni_count = np.count_nonzero(np.isneginf(con_lf))
     dem_lf = [get_word_lf(token, word_dist) for token in dem_tokens]
+    dem_ni_count = np.count_nonzero(np.isneginf(con_lf))
+    con_lf = [token for token in con_lf if token != -np.inf]
     dem_lf = [token for token in dem_lf if token != -np.inf]
-    print("control model log lexical frequency: {}".format(round(sum(con_lf)/len(con_lf), 2)))
-    print("dementia model log lexical frequency: {}".format(round(sum(dem_lf)/len(dem_lf), 2)))
-    print("control model unique word ratio: {:0.2f}".format(len(set(con_tokens))/len(con_tokens)))
-    print("dementia model unique word ratio: {:0.2f}".format(len(set(dem_tokens))/len(dem_tokens)))
+    print("Number of tokens removed from control model: {}".format(con_ni_count))
+    print("Number of tokens removed from dementia model: {}".format(dem_ni_count))
+    print("Control model log lexical frequency: {}".format(round(sum(con_lf)/len(con_lf), 2)))
+    print("Dementia model log lexical frequency: {}".format(round(sum(dem_lf)/len(dem_lf), 2)))
+    print("Control model unique word ratio: {:0.2f}".format(len(set(con_tokens))/len(con_tokens)))
+    print("Dementia model unique word ratio: {:0.2f}".format(len(set(dem_tokens))/len(dem_tokens)))
     # if p<0.05 -> significant difference between two samples
     print("t-test p-value: {:0.3f}".format(ttest_ind(con_lf, dem_lf, equal_var=False)[1]))
 
@@ -113,9 +118,6 @@ def cal_driver(data_name):
     elif data_name == "ccc":
         share = 50
         layers = list(range(3))
-    elif data_name =="afpd":
-        share = 50
-        layers = list(range(1))
     else:
         raise ValueError("wrong data name")
     for layer in layers:
@@ -127,48 +129,8 @@ def cal_driver(data_name):
     calculate_lexical_frequency(con_tokens, dem_tokens)
 
 
-def child_talk_cv():
-    """
-    cross validate language behavior between gillam and ccc dataset
-    """
-    childres = pd.read_csv("data/gillam_normal.tsv", sep="\t")
-    ccc = pd.read_csv("data/ccc_cleaned.tsv", sep="\t")
-    ccc_dem = ccc.loc[ccc["label"] == 1]
-    ccc_con = ccc.loc[ccc["label"] == 0]
-    # pre-process
-    childres_text = " ".join(childres["text"].values.tolist()).lower()
-    ccc_text = " ".join(ccc_dem["text"].values.tolist()).lower()
-    childres_tokens = word_tokenize(childres_text)
-    ccc_tokens = word_tokenize(ccc_text)
-    childres_tokens = [token for token in childres_tokens if token not in string.punctuation]
-    ccc_tokens = [token for token in ccc_tokens if token not in string.punctuation]
-    stop_words = stopwords.words("english")
-    stop_words.append("n't")
-    # add words starting with '
-    con_temp = [token for token in childres_tokens if token.startswith("'")]
-    stop_words.extend(con_temp)
-    dem_temp = [token for token in ccc_tokens if token.startswith("'")]
-    stop_words.extend(dem_temp)
-    tagged = pos_tag(childres_tokens)
-    for item in tagged:
-        tag = item[1]
-        token = item[0]
-        if tag in ("PRP", "PRP$", "WP$", "EX"):
-            stop_words.append(token)
-    tagged = pos_tag(ccc_tokens)
-    for item in tagged:
-        tag = item[1]
-        token = item[0]
-        if tag in ("PRP", "PRP$", "WP$", "EX"):
-            stop_words.append(token)
-    childres_tokens = [token for token in childres_tokens if token not in stop_words]
-    ccc_tokens = [token for token in ccc_tokens if token not in stop_words]
-    calculate_lexical_frequency(childres_tokens, ccc_tokens)
-
-
 
 if __name__ == "__main__":
     start_time = datetime.now()
-    #cal_driver("afpd")
-    child_talk_cv()
+    cal_driver("db")
     print("Total time running :{}\n".format(datetime.now() - start_time))
