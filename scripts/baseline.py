@@ -1,5 +1,5 @@
 '''
-This script is to fine-tune Longformer model and cross-validate on dataset from another domain/task
+This script is to fine-tune BERT model and cross-validate on dataset from another domain/task
 '''
 import os
 import argparse
@@ -16,8 +16,7 @@ from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.sampler import SequentialSampler
 from transformers import BertForSequenceClassification
 from transformers import BertTokenizer
-from transformers import LongformerForSequenceClassification
-from transformers import LongformerTokenizer
+from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 from transformers import AutoModelForSequenceClassification
 from transformers import AdamW
 from transformers import get_linear_schedule_with_warmup
@@ -29,6 +28,7 @@ RANDOM_SEED = 42
 EPOCHS = 10
 NUM_LABELS = 2
 BATCH_SIZE = 8
+MAX_LEN = 512
 
 
 def parse_args():
@@ -111,7 +111,7 @@ def calculate_eer_rate(labels, probs):
     return eer_acc, eer_auc
 
 
-def format_input(trans, tokenizer, max_len):
+def format_input(trans, tokenizer, max_len=MAX_LEN):
     """
     format the input sequence,
     return input ids and attention masks as tensors
@@ -209,8 +209,7 @@ def fine_tune_process(data_loader, model, save_name):
             model.zero_grad()
             # forward pass
             outputs = model(
-                b_input_ids,
-                token_type_ids=None,
+                input_ids=b_input_ids,
                 attention_mask=b_input_mask,
                 labels=b_labels)
             loss = outputs[0]
@@ -270,8 +269,7 @@ def val_process(val_dataloader, model_ft):
         # no forward pass
         with torch.no_grad():
             outputs = model_ft(
-                b_input_ids,
-                token_type_ids=None,
+                input_ids=b_input_ids,
                 attention_mask=b_input_mask,
                 labels=b_labels)
             loss = outputs[0]
@@ -333,26 +331,19 @@ def fine_tune_driver(df_to_train, df_to_val, model_chose, ft_model_name):
     torch.device(DEVICE)
     if model_chose == "bert":
         sys.stdout.write("Loading BERT base model...\n")
-        max_len = 512
         model = BertForSequenceClassification.from_pretrained(
             "bert-base-uncased",
-            num_labels = NUM_LABELS,
-            output_attentions = False,
+            num_labels=NUM_LABELS,
+            output_attentions=False,
             output_hidden_states = False)
         sys.stdout.write("Loading BERT tokenizer...\n")
-        tokenizer = tokenizer = BertTokenizer.from_pretrained(
+        tokenizer = BertTokenizer.from_pretrained(
             'bert-base-uncased', do_lower_case=True)
-    elif model_chose == "longformer":
-        sys.stdout.write("Loading Longformer base model...\n")
-        max_len = 4096
-        model = LongformerForSequenceClassification.from_pretrained(
-            "allenai/longformer-base-4096",
-            num_labels = NUM_LABELS,
-            output_attentions = False,
-            output_hidden_states = False)
-        sys.stdout.write("Loading Longformer tokenizer...\n")
-        tokenizer = LongformerTokenizer.from_pretrained(
-            'allenai/longformer-base-4096', do_lower_case=True)
+    elif model_chose == "distilbert":
+        sys.stdout.write("Loading DistlBERT base model...\n")
+        model = DistilBertForSequenceClassification.from_pretrained("distilbert-base-uncased")
+        sys.stdout.write("Loading DistlBERT tokenizer...\n")
+        tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
     else:
         raise ValueError("Model type is not supported")
     model.to(DEVICE)
@@ -362,7 +353,7 @@ def fine_tune_driver(df_to_train, df_to_val, model_chose, ft_model_name):
     train_labels = torch.tensor(
         df_to_train["label"].values.tolist())
     input_ids, attn_masks = format_input(
-        trans, tokenizer, max_len)
+        trans, tokenizer)
     train_loader = set_dataloader(
         input_ids, attn_masks, train_labels)
     ############################
@@ -371,7 +362,7 @@ def fine_tune_driver(df_to_train, df_to_val, model_chose, ft_model_name):
     val_labels = torch.tensor(
         df_to_val["label"].values.tolist())
     val_input_ids, val_attn_masks = format_input(
-        val_trans, tokenizer, max_len)
+        val_trans, tokenizer)
     val_loader = set_dataloader(
         val_input_ids, val_attn_masks, val_labels)
     ft_path = os.path.join("../fine_tuned/", ft_model_name)
@@ -379,6 +370,7 @@ def fine_tune_driver(df_to_train, df_to_val, model_chose, ft_model_name):
         fine_tune_process(train_loader, model, ft_model_name)
     sys.stdout.write("Loading fine-tuned model...\n")
     model_ft = AutoModelForSequenceClassification.from_pretrained(ft_path)
+    model_ft.to(DEVICE)
     val_process(val_loader, model_ft)
 
 
@@ -413,18 +405,9 @@ def cross_validate_process():
         lambda x: " ".join(x)).reset_index()
     sys.stdout.write("################################\n")
     sys.stdout.write("################################\n")
-    sys.stdout.write("Fine tuning on ADR full, Validating on DB\n")
-    fine_tune_driver(
-        adr_full, db_df, args.model, "adr_" + args.model)
-    sys.stdout.write("################################\n")
-    sys.stdout.write("################################\n")
     sys.stdout.write("Fine tuning on ADR full, Validating on CCC\n")
     fine_tune_driver(
         adr_full, ccc_df, args.model, "adr_" + args.model)
-    sys.stdout.write("################################\n")
-    sys.stdout.write("Fine tuning on DB, Validating on ADReSS full\n")
-    fine_tune_driver(
-        db_df, adr_full, args.model, "db_" + args.model)
     sys.stdout.write("################################\n")
     sys.stdout.write("################################\n")
     sys.stdout.write("Fine tuning on DB, Validating on CCC\n")

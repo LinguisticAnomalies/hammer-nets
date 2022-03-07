@@ -95,7 +95,7 @@ def calculate_lexical_frequency(con_tokens, dem_tokens):
     print("t-test p-value: {:0.3f}".format(ttest_ind(con_lf, dem_lf, equal_var=False)[1]))
 
 
-def cal_driver(data_name):
+def cumulative_cal_driver(data_name):
     """
     calculate the lexical frequency for generated text,
     the driver function
@@ -129,8 +129,41 @@ def cal_driver(data_name):
     calculate_lexical_frequency(con_tokens, dem_tokens)
 
 
+def combination_cal_driver(data_name):
+    """
+    calculate the lexical frequency for generated text,
+    the driver function
+
+    :param data_name: the best pattern given the data name
+    """
+    model_con = GPT2LMHeadModel.from_pretrained("gpt2")
+    model_dem = GPT2LMHeadModel.from_pretrained("gpt2")
+    gpt_tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+    zero_style = "first"
+    bird_df = pd.read_csv("data/bird_frame.tsv", sep="\t")
+    bird_all = bird_df[bird_df["file"] == "mct_all.txt"]["text"].values.tolist()[0]
+    bird_sents = sent_tokenize(bird_all)
+    if data_name == "adr":
+        share = 50
+        layers = [0, 1, 2, 3, 4, 5, 6, 8]
+    elif data_name == "db":
+        share = 50
+        layers = [0, 1, 2, 3, 4, 5, 6, 8]
+    elif data_name == "ccc":
+        share = 50
+        layers = [1, 2, 3, 5, 7, 9, 10, 11]
+    else:
+        raise ValueError("wrong data name")
+    for layer in layers:
+        model_dem = break_attn_heads_by_layer(zero_style, model_dem, 
+                                              share, layer)
+    lan_gene = generate_texts(model_con, model_dem,
+                              gpt_tokenizer, bird_sents)
+    con_tokens, dem_tokens = pre_process(lan_gene)
+    calculate_lexical_frequency(con_tokens, dem_tokens)
+
 
 if __name__ == "__main__":
     start_time = datetime.now()
-    cal_driver("db")
+    combination_cal_driver("ccc")
     print("Total time running :{}\n".format(datetime.now() - start_time))
